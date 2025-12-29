@@ -1,0 +1,107 @@
+const express = require("express");
+const http = require("http");
+const path = require("path");
+const session = require("express-session");
+const cors = require("cors");
+const setupSwagger = require("./config/swagger");
+require("dotenv").config({ debug: false });
+
+// Import database connection
+const db = require("./config/database");
+
+const app = express();
+const server = http.createServer(app);
+
+// CORS Configuration
+app.use(
+  cors({
+    origin: "*",
+    credentials: true,
+  })
+);
+
+// Body parser middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Session middleware
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "EXE201_SECRET_KEY",
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
+  })
+);
+
+// Serve static files
+app.use(express.static(path.join(__dirname, "public")));
+
+// Setup Swagger
+setupSwagger(app);
+
+// Root route
+app.get("/", (req, res) => {
+  res.redirect("/docs");
+});
+
+// Health check route
+app.get("/health", async (req, res) => {
+  try {
+    await db.query("SELECT 1");
+    res.json({
+      status: "healthy",
+      database: "connected",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: "unhealthy",
+      database: "disconnected",
+      error: error.message,
+    });
+  }
+});
+
+// API Routes will be mounted here
+// app.use("/api/v1/auth", require("./routes/auth.route"));
+// app.use("/api/v1/users", require("./routes/user.route"));
+// Add more routes as needed
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+    path: req.path,
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error("Error:", err.stack);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal Server Error",
+    error:
+      process.env.NODE_ENV === "development"
+        ? {
+            stack: err.stack,
+            ...err,
+          }
+        : {},
+  });
+});
+
+// Start server
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📘 Swagger docs: http://localhost:${PORT}/docs`);
+  console.log(`📝 Environment: ${process.env.NODE_ENV || "development"}`);
+  console.log(`💾 Database: ${process.env.DB_HOST}:${process.env.DB_PORT}`);
+});
