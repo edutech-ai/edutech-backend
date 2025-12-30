@@ -67,7 +67,7 @@ app.get("/health", async (req, res) => {
 });
 
 // API Routes will be mounted here
-// app.use("/api/v1/auth", require("./routes/auth.route"));
+app.use("/api/v1/auth", require("./routes/auth.route"));
 // app.use("/api/v1/users", require("./routes/user.route"));
 // Add more routes as needed
 
