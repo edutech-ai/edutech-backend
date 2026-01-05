@@ -1,31 +1,14 @@
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 
-// Tạo transporter
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.EMAIL_PORT) || 587,
-  secure: process.env.EMAIL_PORT === '465', // true for 465, false for 587
-  auth: {
-    user: process.env.EMAIL_USER, // Your email
-    pass: process.env.EMAIL_PASS  // Your app password
-  },
-  connectionTimeout: 60000, // 60 seconds
-  greetingTimeout: 30000,   // 30 seconds
-  socketTimeout: 60000,     // 60 seconds
-  pool: true,               // Use connection pool
-  maxConnections: 1,        // Limit connections
-  rateDelta: 20000,         // Rate limiting
-  rateLimit: 5              // Max 5 messages per 20 seconds
-});
+// Initialize SendGrid
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// Verify connection
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ Email service error:', error.message);
-  } else {
-    console.log('✅ Email service ready');
-  }
-});
+// Verify SendGrid connection
+if (process.env.SENDGRID_API_KEY) {
+  console.log('✅ SendGrid Email service ready');
+} else {
+  console.error('❌ SENDGRID_API_KEY not found');
+}
 
 // Gửi OTP email
 async function sendOTPEmail(email, otp, purpose = 'reset_password', userName = 'User') {
@@ -47,7 +30,7 @@ async function sendOTPEmail(email, otp, purpose = 'reset_password', userName = '
   const config = purposes[purpose] || purposes.reset_password;
 
   const mailOptions = {
-    from: `"${process.env.EMAIL_FROM_NAME || 'EduTech'}" <${process.env.EMAIL_USER}>`,
+    from: `${process.env.EMAIL_FROM_NAME || 'EduTech'} <${process.env.EMAIL_FROM}>`,
     to: email,
     subject: config.subject,
     html: `
@@ -71,7 +54,7 @@ async function sendOTPEmail(email, otp, purpose = 'reset_password', userName = '
             <h1>${config.title}</h1>
           </div>
           <div class="content">
-            <p>Xin chào <strong>${userName}</strong>,</p>
+            <p>Xin chào bạn,</p>
             <p>${config.message}</p>
             
             <div class="otp-box">
@@ -102,11 +85,11 @@ async function sendOTPEmail(email, otp, purpose = 'reset_password', userName = '
   };
 
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('✅ Email sent:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    await sgMail.send(mailOptions);
+    console.log('✅ Email sent to:', email);
+    return { success: true };
   } catch (error) {
-    console.error('❌ Email send error:', error);
+    console.error('❌ Email send error:', error.response?.body || error);
     throw error;
   }
 }
@@ -114,7 +97,7 @@ async function sendOTPEmail(email, otp, purpose = 'reset_password', userName = '
 // Gửi email thông báo đổi mật khẩu thành công
 async function sendPasswordChangedEmail(email, userName = 'User') {
   const mailOptions = {
-    from: `"${process.env.EMAIL_FROM_NAME || 'EduTech'}" <${process.env.EMAIL_USER}>`,
+    from: `${process.env.EMAIL_FROM_NAME || 'EduTech'} <${process.env.EMAIL_FROM}>`,
     to: email,
     subject: 'Mật khẩu đã được thay đổi - EduTech',
     html: `
@@ -137,7 +120,7 @@ async function sendPasswordChangedEmail(email, userName = 'User') {
           </div>
           <div class="content">
             <div class="success-icon">🎉</div>
-            <p>Xin chào <strong>${userName}</strong>,</p>
+            <p>Xin chào bạn,</p>
             <p>Mật khẩu của bạn đã được thay đổi thành công vào lúc <strong>${new Date().toLocaleString('vi-VN')}</strong>.</p>
             <p>Nếu bạn không thực hiện thay đổi này, vui lòng liên hệ với chúng tôi ngay lập tức.</p>
           </div>
@@ -151,10 +134,10 @@ async function sendPasswordChangedEmail(email, userName = 'User') {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sgMail.send(mailOptions);
     console.log('✅ Password changed notification sent');
   } catch (error) {
-    console.error('❌ Email send error:', error);
+    console.error('❌ Email send error:', error.response?.body || error);
   }
 }
 
