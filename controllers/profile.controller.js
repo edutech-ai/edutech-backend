@@ -50,6 +50,7 @@ class ProfileController {
       }
 
       const profileData = {
+        name: req.body.name,
         date_of_birth: req.body.date_of_birth,
         gender: req.body.gender,
         avatar_url: req.body.avatar_url,
@@ -125,6 +126,7 @@ class ProfileController {
       };
 
       const profileData = {
+        name: req.body.name,
         date_of_birth: req.body.date_of_birth,
         gender: req.body.gender,
         avatar_url: uploadedUrl || req.body.avatar_url, // Ưu tiên file upload

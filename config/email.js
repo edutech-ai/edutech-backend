@@ -3,15 +3,19 @@ const nodemailer = require('nodemailer');
 // Tạo transporter
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: process.env.EMAIL_PORT || 587,
-  secure: false, // true for 465, false for other ports
+  port: parseInt(process.env.EMAIL_PORT) || 587,
+  secure: process.env.EMAIL_PORT === '465', // true for 465, false for 587
   auth: {
     user: process.env.EMAIL_USER, // Your email
     pass: process.env.EMAIL_PASS  // Your app password
   },
   connectionTimeout: 60000, // 60 seconds
   greetingTimeout: 30000,   // 30 seconds
-  socketTimeout: 60000      // 60 seconds
+  socketTimeout: 60000,     // 60 seconds
+  pool: true,               // Use connection pool
+  maxConnections: 1,        // Limit connections
+  rateDelta: 20000,         // Rate limiting
+  rateLimit: 5              // Max 5 messages per 20 seconds
 });
 
 // Verify connection

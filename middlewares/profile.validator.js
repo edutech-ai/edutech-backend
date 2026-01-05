@@ -2,6 +2,12 @@ const { body } = require('express-validator');
 
 // Validation rules cho profile
 const profileValidation = [
+  body('name')
+    .optional()
+    .isString()
+    .withMessage('Name must be a string')
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Name must be between 2 and 100 characters'),
   body('date_of_birth')
     .optional()
     .isISO8601()

@@ -3,13 +3,14 @@ const db = require('../config/database');
 class UserProfile {
   // Tạo profile mới
   static async create(userId, profileData = {}) {
-    const { date_of_birth, gender, avatar_url, address, email_notification, push_notification } = profileData;
+    const { name, date_of_birth, gender, avatar_url, address, email_notification, push_notification } = profileData;
     
     await db.query(
-      `INSERT INTO user_profiles (user_id, date_of_birth, gender, avatar_url, address, email_notification, push_notification) 
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO user_profiles (user_id, name, date_of_birth, gender, avatar_url, address, email_notification, push_notification) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
+        name || null,
         date_of_birth || null,
         gender || null,
         avatar_url || null,
@@ -36,7 +37,7 @@ class UserProfile {
     const [rows] = await db.query(
       `SELECT 
         u.id, u.email, u.role, u.subject, u.status, u.created_at,
-        p.date_of_birth, p.gender, p.avatar_url, p.address, 
+        p.name, p.date_of_birth, p.gender, p.avatar_url, p.address, 
         p.email_notification, p.push_notification
        FROM users u
        LEFT JOIN user_profiles p ON u.id = p.user_id
@@ -51,6 +52,10 @@ class UserProfile {
     const fields = [];
     const values = [];
 
+    if (profileData.name !== undefined) {
+      fields.push('name = ?');
+      values.push(profileData.name);
+    }
     if (profileData.date_of_birth !== undefined) {
       fields.push('date_of_birth = ?');
       values.push(profileData.date_of_birth);
