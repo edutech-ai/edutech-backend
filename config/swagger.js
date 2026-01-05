@@ -23,8 +23,8 @@ const swaggerOptions = {
         description: 'Development server'
       },
       {
-        url: 'https://your-production-url.com',
-        description: 'Production server'
+        url: 'https://edutech-backend-eh72.onrender.com',
+        description: 'Production server (Render)'
       }
     ],
     components: {
