@@ -19,12 +19,12 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: process.env.NODE_ENV === 'production' 
-          ? 'https://edutech-backend-eh72.onrender.com'
-          : `http://localhost:${process.env.PORT || 3000}`,
-        description: process.env.NODE_ENV === 'production' 
-          ? 'Production server (Render)' 
-          : 'Development server'
+        url: `http://localhost:${process.env.PORT || 3000}`,
+        description: 'Development server'
+      },
+      {
+        url: 'https://edutech-backend-eh72.onrender.com',
+        description: 'Production server (Render)'
       }
     ],
     components: {
