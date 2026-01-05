@@ -35,3 +35,13 @@ coverage/
 
 # Uploads (if any)
 uploads/
+
+# Documentation (setup guides - internal use only)
+API_DOCUMENTATION.md
+EMAIL_OTP_SETUP.md
+QUICK_TEST_OTP.md
+REDIS_SETUP.md
+REDIS_QUICK_COMMANDS.md
+REFACTORING_SUMMARY.md
+FORM_DATA_UPLOAD.md
+TEST_GUIDE.md

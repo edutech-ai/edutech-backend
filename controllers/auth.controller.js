@@ -1,51 +1,12 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const OTP = require('../models/OTP');
+const { sendOTPEmail } = require('../config/email');
 const { validationResult } = require('express-validator');
 
 class AuthController {
-  /**
-   * @swagger
-   * /api/v1/auth/register:
-   *   post:
-   *     tags: [Auth]
-   *     summary: Đăng ký tài khoản mới
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required:
-   *               - email
-   *               - password
-   *             properties:
-   *               email:
-   *                 type: string
-   *                 format: email
-   *                 example: teacher@example.com
-   *               password:
-   *                 type: string
-   *                 minLength: 6
-   *                 example: password123
-   *               role:
-   *                 type: string
-   *                 enum: [STUDENT, TEACHER, ADMIN]
-   *                 default: TEACHER
-   *               subject:
-   *                 type: string
-   *                 enum: [TOAN, VAN, ANH, LY, HOA, SINH, SU, DIA, GDCD, TIN, CN]
-   *                 description: Môn dạy (chỉ dành cho TEACHER)
-   *     responses:
-   *       201:
-   *         description: Đăng ký thành công
-   *       400:
-   *         description: Dữ liệu không hợp lệ
-   *       409:
-   *         description: Email đã tồn tại
-   */
   static async register(req, res) {
     try {
-      // Validate input
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({
@@ -57,7 +18,6 @@ class AuthController {
 
       const { email, password, role, subject } = req.body;
 
-      // Kiểm tra email đã tồn tại
       const existingUser = await User.findByEmail(email);
       if (existingUser) {
         return res.status(409).json({
@@ -66,28 +26,23 @@ class AuthController {
         });
       }
 
-      // Tạo user mới
-      const userId = await User.create({ 
-        email, 
-        password, 
-        role: role || 'TEACHER',
-        subject: (role === 'TEACHER' && subject) ? subject : null
-      });
+      // Tạo và gửi OTP để verify email
+      const { otpCode } = await OTP.create(null, email);
+      await sendOTPEmail(email, otpCode, 'register');
 
-      // Tạo JWT token
-      const token = jwt.sign(
-        { userId },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRE || '7d' }
+      // Lưu thông tin registration tạm vào session/memory
+      // Store trong Redis với key: pending_register:{email}
+      const redisClient = require('../config/redis');
+      await redisClient.setEx(
+        `pending_register:${email}`,
+        600, // 10 phút
+        JSON.stringify({ email, password, role: role || 'TEACHER', subject })
       );
 
-      res.status(201).json({
+      res.status(200).json({
         success: true,
-        message: 'User registered successfully',
-        data: {
-          userId,
-          token
-        }
+        message: 'OTP sent to your email. Please verify to complete registration.',
+        data: { email }
       });
     } catch (error) {
       console.error('Register error:', error);
@@ -99,35 +54,76 @@ class AuthController {
     }
   }
 
-  /**
-   * @swagger
-   * /api/v1/auth/login:
-   *   post:
-   *     tags: [Auth]
-   *     summary: Đăng nhập
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             required:
-   *               - email
-   *               - password
-   *             properties:
-   *               email:
-   *                 type: string
-   *                 format: email
-   *               password:
-   *                 type: string
-   *     responses:
-   *       200:
-   *         description: Đăng nhập thành công
-   *       401:
-   *         description: Email hoặc password không đúng
-   *       403:
-   *         description: Tài khoản bị khóa
-   */
+  static async verifyRegister(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: errors.array()
+        });
+      }
+
+      const { email, otpCode } = req.body;
+
+      // Verify OTP
+      const isValid = await OTP.verify(email, otpCode);
+      if (!isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or expired OTP'
+        });
+      }
+
+      // Lấy thông tin registration từ Redis
+      const redisClient = require('../config/redis');
+      const pendingData = await redisClient.get(`pending_register:${email}`);
+      
+      if (!pendingData) {
+        return res.status(400).json({
+          success: false,
+          message: 'Registration session expired. Please register again.'
+        });
+      }
+
+      const { password, role, subject } = JSON.parse(pendingData);
+
+      // Tạo user
+      const userId = await User.create({ 
+        email, 
+        password, 
+        role,
+        subject: (role === 'TEACHER' && subject) ? subject : null
+      });
+
+      // Xóa pending data
+      await redisClient.del(`pending_register:${email}`);
+
+      // Generate JWT token
+      const token = jwt.sign(
+        { userId },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRE || '7d' }
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Registration verified successfully',
+        data: {
+          userId,
+          token
+        }
+      });
+    } catch (error) {
+      console.error('Verify register error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Server error'
+      });
+    }
+  }
+
   static async login(req, res) {
     try {
       const errors = validationResult(req);
@@ -141,7 +137,6 @@ class AuthController {
 
       const { email, password } = req.body;
 
-      // Tìm user
       const user = await User.findByEmail(email);
       if (!user) {
         return res.status(401).json({
@@ -150,7 +145,6 @@ class AuthController {
         });
       }
 
-      // Kiểm tra status
       if (user.status !== 'active') {
         return res.status(403).json({
           success: false,
@@ -158,7 +152,6 @@ class AuthController {
         });
       }
 
-      // Kiểm tra password
       const isPasswordValid = await User.comparePassword(password, user.password_hash);
       if (!isPasswordValid) {
         return res.status(401).json({
@@ -167,14 +160,12 @@ class AuthController {
         });
       }
 
-      // Tạo JWT token
       const token = jwt.sign(
         { userId: user.id },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRE || '7d' }
       );
 
-      // Không trả về password
       delete user.password_hash;
 
       res.json({
@@ -195,20 +186,6 @@ class AuthController {
     }
   }
 
-  /**
-   * @swagger
-   * /api/v1/auth/profile:
-   *   get:
-   *     tags: [Auth]
-   *     summary: Lấy thông tin người dùng đang đăng nhập
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: Thành công
-   *       401:
-   *         description: Chưa đăng nhập
-   */
   static async getProfile(req, res) {
     try {
       res.json({
@@ -223,6 +200,175 @@ class AuthController {
         error: error.message
       });
     }
+  }
+
+  static async logout(req, res) {
+    try {
+      res.json({
+        success: true,
+        message: 'Logout successful'
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Logout failed',
+        error: error.message
+      });
+    }
+  }
+
+  static async changePassword(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: errors.array()
+        });
+      }
+
+      const { currentPassword, newPassword } = req.body;
+
+      const user = await User.findByEmail(req.user.email);
+
+      const isPasswordValid = await User.comparePassword(currentPassword, user.password_hash);
+      if (!isPasswordValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Current password is incorrect'
+        });
+      }
+
+      await User.changePassword(req.user.id, newPassword);
+
+      res.json({
+        success: true,
+        message: 'Password changed successfully'
+      });
+    } catch (error) {
+      console.error('Change password error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to change password',
+        error: error.message
+      });
+    }
+  }
+
+  static async forgotPassword(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: errors.array()
+        });
+      }
+
+      const { email } = req.body;
+
+      const user = await User.findByEmail(email);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Email not found'
+        });
+      }
+
+      // Import OTP model và email service
+      const OTP = require('../models/OTP');
+      const { sendOTPEmail } = require('../config/email');
+
+      // Xóa OTP cũ (nếu có)
+      await OTP.deleteOldOTPs(email);
+
+      // Tạo OTP mới
+      const { otpCode, expiresAt } = await OTP.create(user.id, email);
+
+      // Gửi email
+      try {
+        await sendOTPEmail(email, otpCode, user.email);
+        
+        res.json({
+          success: true,
+          message: 'Mã OTP đã được gửi đến email của bạn',
+          data: {
+            email,
+            expiresIn: '5 phút'
+          }
+        });
+      } catch (emailError) {
+        console.error('Send email error:', emailError);
+        res.status(500).json({
+          success: false,
+          message: 'Không thể gửi email. Vui lòng thử lại sau',
+          error: emailError.message
+        });
+      }
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to process forgot password request',
+        error: error.message
+      });
+    }
+  }
+
+  static async verifyOTP(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: errors.array()
+        });
+      }
+
+      const { email, otpCode, newPassword } = req.body;
+
+      const OTP = require('../models/OTP');
+      const { sendPasswordChangedEmail } = require('../config/email');
+
+      // Verify OTP
+      const verifyResult = await OTP.verify(email, otpCode);
+
+      if (!verifyResult.valid) {
+        return res.status(400).json({
+          success: false,
+          message: verifyResult.message
+        });
+      }
+
+      // Đổi mật khẩu
+      await User.changePassword(verifyResult.userId, newPassword);
+
+      // Gửi email thông báo (optional, không chặn request)
+      sendPasswordChangedEmail(email).catch(err => 
+        console.error('Send notification email error:', err)
+      );
+
+      res.json({
+        success: true,
+        message: 'Đặt lại mật khẩu thành công'
+      });
+    } catch (error) {
+      console.error('Verify OTP error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to verify OTP',
+        error: error.message
+      });
+    }
+  }
+
+  static async resetPassword(req, res) {
+    // Alias for verifyOTP (backward compatibility)
+    return this.verifyOTP(req, res);
   }
 }
 

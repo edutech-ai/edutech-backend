@@ -80,6 +80,33 @@ class User {
       [id]
     );
   }
+
+  // Đổi password
+  static async changePassword(id, newPassword) {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await db.query(
+      `UPDATE users SET password_hash = ? WHERE id = ? AND is_deleted = FALSE`,
+      [hashedPassword, id]
+    );
+  }
+
+  // Tạo reset password token (simple version - lưu vào DB thực tế nên có bảng riêng)
+  static async createPasswordResetToken(email) {
+    const user = await this.findByEmail(email);
+    if (!user) return null;
+
+    // Generate random token (trong thực tế nên lưu vào bảng password_reset_tokens)
+    const resetToken = uuidv4();
+    const expires = new Date(Date.now() + 3600000); // 1 giờ
+
+    // Ở đây đơn giản hóa - trong thực tế nên có bảng riêng
+    // Trả về token để gửi email
+    return {
+      userId: user.id,
+      resetToken,
+      expires
+    };
+  }
 }
 
 module.exports = User;

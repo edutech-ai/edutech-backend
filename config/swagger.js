@@ -90,7 +90,10 @@ const setupSwagger = (app) => {
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
     customCss: '.swagger-ui .topbar { display: none }',
     customSiteTitle: 'EXE201 API Docs',
-    customfavIcon: '/favicon.ico'
+    customfavIcon: '/favicon.ico',
+    swaggerOptions: {
+      persistAuthorization: true,
+    }
   }));
 
   // Swagger JSON

@@ -9,6 +9,12 @@ require("dotenv").config({ debug: false });
 // Import database connection
 const db = require("./config/database");
 
+// Import Redis connection (for OTP storage)
+const redisClient = require("./config/redis");
+
+// Import Cloudinary connection (for image/video upload)
+require("./config/cloudinary");
+
 const app = express();
 const server = http.createServer(app);
 
@@ -68,6 +74,7 @@ app.get("/health", async (req, res) => {
 
 // API Routes will be mounted here
 app.use("/api/v1/auth", require("./routes/auth.route"));
+app.use("/api/v1/profile", require("./routes/profile.route"));
 // app.use("/api/v1/users", require("./routes/user.route"));
 // Add more routes as needed
 
