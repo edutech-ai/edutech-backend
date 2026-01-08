@@ -4,14 +4,20 @@ const { v7: uuidv7 } = require('uuid');
 
 class User {
   // Tạo user mới
-  static async create({ email, password, role = 'TEACHER', subject = null }) {
-    const hashedPassword = await bcrypt.hash(password, 10);
+  static async create({ email, password, role = 'TEACHER', subject = null, google_id = null, is_verified = false }) {
+    let hashedPassword = null;
+    
+    // Chỉ hash password nếu có (không hash cho OAuth users)
+    if (password) {
+      hashedPassword = await bcrypt.hash(password, 10);
+    }
+    
     const userId = uuidv7();
     
     await db.query(
-      `INSERT INTO users (id, email, password_hash, role, subject) 
-       VALUES (?, ?, ?, ?, ?)`,
-      [userId, email, hashedPassword, role, subject]
+      `INSERT INTO users (id, email, password_hash, role, subject, google_id, is_verified) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [userId, email, hashedPassword, role, subject, google_id, is_verified]
     );
     
     return userId;
@@ -106,6 +112,27 @@ class User {
       resetToken,
       expires
     };
+  }
+
+  // Cập nhật Google ID cho user
+  static async updateGoogleId(userId, googleId) {
+    await db.query(
+      `UPDATE users SET google_id = ? WHERE id = ? AND is_deleted = FALSE`,
+      [googleId, userId]
+    );
+  }
+
+  // Tạo user từ Google OAuth (không cần password)
+  static async createFromGoogle({ email, google_id, role = 'TEACHER' }) {
+    const userId = uuidv7();
+    
+    await db.query(
+      `INSERT INTO users (id, email, google_id, role, is_verified) 
+       VALUES (?, ?, ?, ?, TRUE)`,
+      [userId, email, google_id, role]
+    );
+    
+    return userId;
   }
 }
 

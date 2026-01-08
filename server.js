@@ -3,8 +3,10 @@ const http = require("http");
 const path = require("path");
 const session = require("express-session");
 const cors = require("cors");
-const setupSwagger = require("./config/swagger");
 require("dotenv").config({ debug: false });
+
+const passport = require("./config/passport");
+const setupSwagger = require("./config/swagger");
 
 // Import database connection
 const db = require("./config/database");
@@ -39,6 +41,10 @@ app.use(
     },
   })
 );
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Serve static files
 app.use(express.static(path.join(__dirname, "public")));

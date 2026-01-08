@@ -1,4 +1,5 @@
 const express = require('express');
+const passport = require('../config/passport');
 const AuthController = require('../controllers/auth.controller');
 const { authenticate } = require('../middlewares/auth');
 const {
@@ -412,5 +413,88 @@ router.post('/verify-otp', verifyOTPValidation, AuthController.verifyOTP);
  *         description: OTP không hợp lệ
  */
 router.post('/reset-password', verifyOTPValidation, AuthController.resetPassword);
+
+/**
+ * @swagger
+ * /api/v1/auth/google:
+ *   get:
+ *     summary: Chuyển hướng sang Google để đăng nhập
+ *     tags: [Authentication]
+ *     description: Endpoint này sẽ redirect người dùng sang trang đăng nhập Google OAuth
+ *     responses:
+ *       302:
+ *         description: Redirect sang Google OAuth
+ */
+router.get('/google', 
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'] 
+  })
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/google/callback:
+ *   get:
+ *     summary: Callback sau khi đăng nhập Google
+ *     tags: [Authentication]
+ *     description: Google sẽ redirect về endpoint này sau khi user đăng nhập thành công
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         schema:
+ *           type: string
+ *         description: Authorization code từ Google
+ *     responses:
+ *       302:
+ *         description: Redirect về frontend với token hoặc error
+ */
+router.get('/google/callback',
+  passport.authenticate('google', { 
+    failureRedirect: '/login',
+    session: false 
+  }),
+  AuthController.googleCallback
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/refresh-token:
+ *   post:
+ *     summary: Làm mới access token
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *                 description: Refresh token nhận được khi login
+ *                 example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *     responses:
+ *       200:
+ *         description: Access token mới
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     accessToken:
+ *                       type: string
+ *                     expiresIn:
+ *                       type: number
+ *       401:
+ *         description: Refresh token không hợp lệ hoặc đã hết hạn
+ */
+router.post('/refresh-token', AuthController.refreshToken);
 
 module.exports = router;

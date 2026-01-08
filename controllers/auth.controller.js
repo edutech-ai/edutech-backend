@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const OTP = require('../models/OTP');
+const RefreshToken = require('../models/RefreshToken');
 const { sendOTPEmail } = require('../config/email');
 const { validationResult } = require('express-validator');
 
@@ -101,18 +102,23 @@ class AuthController {
       await redisClient.del(`pending_register:${email}`);
 
       // Generate JWT token
-      const token = jwt.sign(
-        { userId },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRE || '7d' }
-      );
+      const { generateAccessToken, generateRefreshToken } = require('../utils/tokenHelper');
+      
+      // Generate access token và refresh token
+      const accessToken = generateAccessToken(userId);
+      const refreshToken = generateRefreshToken(userId);
+      
+      // Lưu refresh token vào database
+      await RefreshToken.create(userId, refreshToken);
 
       res.status(201).json({
         success: true,
         message: 'Registration verified successfully',
         data: {
           userId,
-          token
+          accessToken,
+          refreshToken,
+          expiresIn: 900 // 15 phút (seconds)
         }
       });
     } catch (error) {
@@ -160,11 +166,14 @@ class AuthController {
         });
       }
 
-      const token = jwt.sign(
-        { userId: user.id },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRE || '7d' }
-      );
+      const { generateAccessToken, generateRefreshToken } = require('../utils/tokenHelper');
+      
+      // Generate access token và refresh token
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = generateRefreshToken(user.id);
+      
+      // Lưu refresh token vào database
+      await RefreshToken.create(user.id, refreshToken);
 
       delete user.password_hash;
 
@@ -173,7 +182,9 @@ class AuthController {
         message: 'Login successful',
         data: {
           user,
-          token
+          accessToken,
+          refreshToken,
+          expiresIn: 900 // 15 phút (seconds)
         }
       });
     } catch (error) {
@@ -369,6 +380,86 @@ class AuthController {
   static async resetPassword(req, res) {
     // Alias for verifyOTP (backward compatibility)
     return this.verifyOTP(req, res);
+  }
+
+  // Refresh access token
+  static async refreshToken(req, res) {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        return res.status(400).json({
+          success: false,
+          message: 'Refresh token is required'
+        });
+      }
+
+      const { verifyRefreshToken, generateAccessToken } = require('../utils/tokenHelper');
+
+      // Verify refresh token
+      const decoded = verifyRefreshToken(refreshToken);
+      if (!decoded) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid or expired refresh token'
+        });
+      }
+
+      // Kiểm tra refresh token có trong database và chưa bị revoke
+      const tokenData = await RefreshToken.findByToken(refreshToken);
+      if (!tokenData) {
+        return res.status(401).json({
+          success: false,
+          message: 'Refresh token not found or has been revoked'
+        });
+      }
+
+      // Generate access token mới
+      const newAccessToken = generateAccessToken(decoded.userId);
+
+      res.json({
+        success: true,
+        message: 'Access token refreshed successfully',
+        data: {
+          accessToken: newAccessToken,
+          expiresIn: 900 // 15 phút
+        }
+      });
+    } catch (error) {
+      console.error('Refresh token error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to refresh token',
+        error: error.message
+      });
+    }
+  }
+
+  // Google OAuth Success Handler
+  static async googleCallback(req, res) {
+    try {
+      if (!req.user) {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        return res.redirect(`${frontendUrl}/login?error=auth_failed`);
+      }
+
+      const { generateAccessToken, generateRefreshToken } = require('../utils/tokenHelper');
+      
+      // Generate access token và refresh token
+      const accessToken = generateAccessToken(req.user.id);
+      const refreshToken = generateRefreshToken(req.user.id);
+      
+      // Lưu refresh token vào database
+      await RefreshToken.create(req.user.id, refreshToken);
+
+      // Redirect về frontend với cả 2 tokens
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/auth/google/success?accessToken=${accessToken}&refreshToken=${refreshToken}`);
+    } catch (error) {
+      console.error('Google callback error:', error);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/login?error=auth_failed`);
+    }
   }
 }
 
