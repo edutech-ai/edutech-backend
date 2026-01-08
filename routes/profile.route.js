@@ -124,7 +124,7 @@ router.post('/', authenticate, profileValidation, ProfileController.createProfil
  * @swagger
  * /api/v1/profile:
  *   put:
- *     summary: Cập nhật profile (hỗ trợ cả JSON và multipart/form-data)
+ *     summary: Cập nhật profile
  *     tags: [Profile]
  *     security:
  *       - bearerAuth: []
@@ -135,45 +135,28 @@ router.post('/', authenticate, profileValidation, ProfileController.createProfil
  *           schema:
  *             type: object
  *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "Nguyen Van A"
  *               date_of_birth:
  *                 type: string
  *                 format: date
  *                 example: "1990-01-01"
  *               gender:
  *                 type: string
- *                 example: "Nữ"
+ *                 example: "Nam"
  *               avatar_url:
  *                 type: string
- *                 example: "https://example.com/avatar.jpg"
+ *                 example: "https://res.cloudinary.com/example/image/upload/avatar.jpg"
  *               address:
  *                 type: string
  *                 example: "Ho Chi Minh City, Viet Nam"
  *               email_notification:
  *                 type: boolean
+ *                 example: true
  *               push_notification:
  *                 type: boolean
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               avatar:
- *                 type: string
- *                 format: binary
- *                 description: "Avatar file (max 2MB, jpg/png/gif/webp)"
- *               date_of_birth:
- *                 type: string
- *                 format: date
- *                 example: "1990-01-01"
- *               gender:
- *                 type: string
- *                 example: "Nữ"
- *               address:
- *                 type: string
- *                 example: "Ho Chi Minh City, Viet Nam"
- *               email_notification:
- *                 type: boolean
- *               push_notification:
- *                 type: boolean
+ *                 example: true
  *     responses:
  *       200:
  *         description: Cập nhật thành công
@@ -184,14 +167,14 @@ router.post('/', authenticate, profileValidation, ProfileController.createProfil
  *               properties:
  *                 success:
  *                   type: boolean
+ *                   example: true
  *                 message:
  *                   type: string
+ *                   example: "Profile updated successfully"
  *                 data:
  *                   type: object
- *                   properties:
- *                     avatar_url:
- *                       type: string
- *                       description: Cloudinary URL nếu upload file
+ *       400:
+ *         description: Dữ liệu không hợp lệ
  *       404:
  *         description: Profile không tồn tại
  */
