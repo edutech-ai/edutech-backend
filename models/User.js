@@ -1,12 +1,12 @@
 const db = require('../config/database');
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid');
+const { v7: uuidv7 } = require('uuid');
 
 class User {
   // Tạo user mới
   static async create({ email, password, role = 'TEACHER', subject = null }) {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const userId = uuidv4();
+    const userId = uuidv7();
     
     await db.query(
       `INSERT INTO users (id, email, password_hash, role, subject) 
@@ -96,7 +96,7 @@ class User {
     if (!user) return null;
 
     // Generate random token (trong thực tế nên lưu vào bảng password_reset_tokens)
-    const resetToken = uuidv4();
+    const resetToken = uuidv7();
     const expires = new Date(Date.now() + 3600000); // 1 giờ
 
     // Ở đây đơn giản hóa - trong thực tế nên có bảng riêng

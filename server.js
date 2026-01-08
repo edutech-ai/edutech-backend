@@ -12,16 +12,13 @@ const db = require("./config/database");
 // Import Redis connection (for OTP storage)
 const redisClient = require("./config/redis");
 
-// Import Cloudinary connection (for image/video upload)
-require("./config/cloudinary");
-
 const app = express();
 const server = http.createServer(app);
 
 // CORS Configuration
 app.use(
   cors({
-    origin: "*",
+    origin: ["http://localhost:3000", "https://go-edutech.vercel.app"],
     credentials: true,
   })
 );

@@ -2,7 +2,6 @@ const express = require('express');
 const ProfileController = require('../controllers/profile.controller');
 const { authenticate } = require('../middlewares/auth');
 const { profileValidation } = require('../middlewares/profile.validator');
-const { uploadAvatar, handleMulterError } = require('../middlewares/upload');
 
 const router = express.Router();
 
@@ -196,7 +195,7 @@ router.post('/', authenticate, profileValidation, ProfileController.createProfil
  *       404:
  *         description: Profile không tồn tại
  */
-router.put('/', authenticate, uploadAvatar, handleMulterError, ProfileController.updateProfile);
+router.put('/', authenticate, ProfileController.updateProfile);
 
 /**
  * @swagger

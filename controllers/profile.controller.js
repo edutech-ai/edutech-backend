@@ -1,8 +1,6 @@
 const UserProfile = require('../models/UserProfile');
 const User = require('../models/User');
 const { validationResult } = require('express-validator');
-const { uploadImage, deleteImage } = require('../config/cloudinary');
-const { deleteLocalFile } = require('../middlewares/upload');
 
 class ProfileController {
   static async getMyProfile(req, res) {
@@ -77,8 +75,6 @@ class ProfileController {
   }
 
   static async updateProfile(req, res) {
-    let uploadedUrl = null;
-
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -90,30 +86,6 @@ class ProfileController {
       }
 
       const userId = req.user.id;
-
-      // Nếu có file avatar được upload
-      if (req.file) {
-        // Upload lên Cloudinary
-        const result = await uploadImage(req.file, 'edutech/avatars');
-        uploadedUrl = result.url;
-
-        // Xóa file local
-        deleteLocalFile(req.file.path);
-
-        // Lấy profile hiện tại để xóa avatar cũ
-        const currentProfile = await UserProfile.findByUserId(userId);
-        
-        // Nếu có avatar cũ từ Cloudinary, xóa đi
-        if (currentProfile && currentProfile.avatar_url) {
-          const oldPublicId = extractPublicId(currentProfile.avatar_url);
-          if (oldPublicId) {
-            await deleteImage(oldPublicId).catch(err => 
-              console.log('Could not delete old avatar:', err.message)
-            );
-          }
-        }
-      }
-
       const existingProfile = await UserProfile.findByUserId(userId);
       
       // Helper: Convert string to boolean (for form-data)
@@ -129,7 +101,7 @@ class ProfileController {
         name: req.body.name,
         date_of_birth: req.body.date_of_birth,
         gender: req.body.gender,
-        avatar_url: uploadedUrl || req.body.avatar_url, // Ưu tiên file upload
+        avatar_url: req.body.avatar_url,
         address: req.body.address,
         email_notification: toBoolean(req.body.email_notification),
         push_notification: toBoolean(req.body.push_notification)
@@ -153,11 +125,6 @@ class ProfileController {
         data: updatedProfile
       });
     } catch (error) {
-      // Xóa file local nếu có lỗi
-      if (req.file) {
-        deleteLocalFile(req.file.path);
-      }
-
       console.error('Update profile error:', error);
       res.status(500).json({
         success: false,
@@ -221,34 +188,6 @@ class ProfileController {
         error: error.message
       });
     }
-  }
-}
-
-// Helper: Extract public ID from Cloudinary URL
-function extractPublicId(url) {
-  try {
-    if (!url || !url.includes('cloudinary.com')) {
-      return null;
-    }
-    
-    // URL format: https://res.cloudinary.com/{cloud_name}/image/upload/{version}/{public_id}.{format}
-    const parts = url.split('/');
-    const uploadIndex = parts.indexOf('upload');
-    if (uploadIndex === -1) return null;
-    
-    // Get everything after /upload/ (skip version if exists)
-    const afterUpload = parts.slice(uploadIndex + 1).join('/');
-    
-    // Remove version if starts with v + digits
-    const withoutVersion = afterUpload.replace(/^v\d+\//, '');
-    
-    // Remove file extension
-    const publicId = withoutVersion.replace(/\.[^.]+$/, '');
-    
-    return publicId;
-  } catch (error) {
-    console.error('Error extracting public ID:', error);
-    return null;
   }
 }
 
