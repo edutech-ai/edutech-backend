@@ -78,6 +78,7 @@ app.get("/health", async (req, res) => {
 // API Routes will be mounted here
 app.use("/api/v1/auth", require("./routes/auth.route"));
 app.use("/api/v1/profile", require("./routes/profile.route"));
+app.use("/api/v1/settings", require("./routes/settings.route"));
 // app.use("/api/v1/users", require("./routes/user.route"));
 // Add more routes as needed
 
@@ -99,9 +100,9 @@ app.use((err, req, res, next) => {
     error:
       process.env.NODE_ENV === "development"
         ? {
-            stack: err.stack,
-            ...err,
-          }
+          stack: err.stack,
+          ...err,
+        }
         : {},
   });
 });
