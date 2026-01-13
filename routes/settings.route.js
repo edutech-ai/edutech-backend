@@ -3,7 +3,9 @@ const SettingsController = require('../controllers/settings.controller');
 const { authenticate, authorizeAdmin } = require('../middlewares/auth');
 const {
     createPricePlanValidation,
-    updatePricePlanValidation
+    updatePricePlanValidation,
+    createFAQValidation,
+    updateFAQValidation
 } = require('../middlewares/settings.validator');
 
 const router = express.Router();
@@ -12,7 +14,7 @@ const router = express.Router();
  * @swagger
  * tags:
  *   name: Settings
- *   description: Settings management APIs (Admin only)
+ *   description: Settings management APIs
  */
 
 /**
@@ -142,7 +144,7 @@ router.get('/price-plans/:id', SettingsController.getPricePlanById);
  * @swagger
  * /api/v1/settings/price-plans:
  *   post:
- *     summary: Tạo price plan mới (Admin only)
+ *     summary: Tạo price plan mới
  *     tags: [Settings]
  *     security:
  *       - bearerAuth: []
@@ -213,7 +215,7 @@ router.post('/price-plans', authenticate, authorizeAdmin, createPricePlanValidat
  * @swagger
  * /api/v1/settings/price-plans/{id}:
  *   put:
- *     summary: Cập nhật price plan (Admin only)
+ *     summary: Cập nhật price plan
  *     tags: [Settings]
  *     security:
  *       - bearerAuth: []
@@ -283,7 +285,7 @@ router.put('/price-plans/:id', authenticate, authorizeAdmin, updatePricePlanVali
  * @swagger
  * /api/v1/settings/price-plans/{id}:
  *   delete:
- *     summary: Xóa price plan (Admin only) - Soft delete
+ *     summary: Xóa price plan - Soft delete
  *     tags: [Settings]
  *     security:
  *       - bearerAuth: []
@@ -316,5 +318,186 @@ router.put('/price-plans/:id', authenticate, authorizeAdmin, updatePricePlanVali
  *         description: Server error
  */
 router.delete('/price-plans/:id', authenticate, authorizeAdmin, SettingsController.deletePricePlan);
+
+// ==================== FAQ Routes ====================
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     FAQ:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         question:
+ *           type: string
+ *         answer:
+ *           type: string
+ *         category:
+ *           type: string
+ *         is_active:
+ *           type: boolean
+ *         display_order:
+ *           type: integer
+ *         created_at:
+ *           type: string
+ *           format: date-time
+ *         updated_at:
+ *           type: string
+ *           format: date-time
+ */
+
+/**
+ * @swagger
+ * /api/v1/settings/faqs:
+ *   get:
+ *     summary: Lấy danh sách FAQs
+ *     tags: [Settings]
+ *     parameters:
+ *       - in: query
+ *         name: active
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: Chỉ lấy FAQs đang active
+ *     responses:
+ *       200:
+ *         description: Danh sách FAQs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/FAQ'
+ *                 count:
+ *                   type: integer
+ */
+router.get('/faqs', SettingsController.getAllFAQs);
+
+/**
+ * @swagger
+ * /api/v1/settings/faqs/{id}:
+ *   get:
+ *     summary: Lấy FAQ theo ID
+ *     tags: [Settings]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Thông tin FAQ
+ *       404:
+ *         description: FAQ không tồn tại
+ */
+router.get('/faqs/:id', SettingsController.getFAQById);
+
+/**
+ * @swagger
+ * /api/v1/settings/faqs:
+ *   post:
+ *     summary: Tạo FAQ mới (Admin only)
+ *     tags: [Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - question
+ *               - answer
+ *             properties:
+ *               question:
+ *                 type: string
+ *                 example: Làm thế nào để đăng ký tài khoản?
+ *               answer:
+ *                 type: string
+ *                 example: Bạn có thể đăng ký bằng email hoặc Google
+ *               category:
+ *                 type: string
+ *                 example: Tài khoản
+ *               display_order:
+ *                 type: integer
+ *                 example: 1
+ *     responses:
+ *       201:
+ *         description: FAQ được tạo thành công
+ *       401:
+ *         description: Chưa đăng nhập
+ *       403:
+ *         description: Không có quyền admin
+ */
+router.post('/faqs', authenticate, authorizeAdmin, createFAQValidation, SettingsController.createFAQ);
+
+/**
+ * @swagger
+ * /api/v1/settings/faqs/{id}:
+ *   put:
+ *     summary: Cập nhật FAQ
+ *     tags: [Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               question:
+ *                 type: string
+ *               answer:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *               is_active:
+ *                 type: boolean
+ *               display_order:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: FAQ được cập nhật thành công
+ *       404:
+ *         description: FAQ không tồn tại
+ */
+router.put('/faqs/:id', authenticate, authorizeAdmin, updateFAQValidation, SettingsController.updateFAQ);
+
+/**
+ * @swagger
+ * /api/v1/settings/faqs/{id}:
+ *   delete:
+ *     summary: Xóa FAQ
+ *     tags: [Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: FAQ được xóa thành công
+ *       404:
+ *         description: FAQ không tồn tại
+ */
+router.delete('/faqs/:id', authenticate, authorizeAdmin, SettingsController.deleteFAQ);
 
 module.exports = router;

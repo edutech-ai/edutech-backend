@@ -108,7 +108,63 @@ const updatePricePlanValidation = [
         .withMessage('Display order must be a positive integer')
 ];
 
+// FAQ Validations
+const createFAQValidation = [
+    body('question')
+        .trim()
+        .notEmpty()
+        .withMessage('Question is required'),
+
+    body('answer')
+        .trim()
+        .notEmpty()
+        .withMessage('Answer is required'),
+
+    body('category')
+        .optional()
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage('Category must not exceed 100 characters'),
+
+    body('display_order')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('Display order must be a positive integer')
+];
+
+const updateFAQValidation = [
+    body('question')
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage('Question cannot be empty'),
+
+    body('answer')
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage('Answer cannot be empty'),
+
+    body('category')
+        .optional()
+        .trim()
+        .isLength({ max: 100 })
+        .withMessage('Category must not exceed 100 characters'),
+
+    body('is_active')
+        .optional()
+        .isBoolean()
+        .withMessage('is_active must be a boolean'),
+
+    body('display_order')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('Display order must be a positive integer')
+];
+
 module.exports = {
     createPricePlanValidation,
-    updatePricePlanValidation
+    updatePricePlanValidation,
+    createFAQValidation,
+    updateFAQValidation
 };
