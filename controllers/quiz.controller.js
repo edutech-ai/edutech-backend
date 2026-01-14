@@ -15,8 +15,30 @@ class QuizController {
         });
       }
 
-      const { title, description, difficulty, exam_code, qr_code, status } = req.body;
+      const {
+        title,
+        description,
+        difficulty,
+        exam_code,
+        qr_code,
+        status,
+        subject,
+        grade,
+        duration,
+        min_attempts,
+        max_attempts
+      } = req.body;
       const teacher_id = req.user.id;
+
+      // Validate attempt limits
+      if (max_attempts !== null && max_attempts !== undefined && min_attempts) {
+        if (max_attempts < min_attempts) {
+          return res.status(400).json({
+            success: false,
+            message: 'max_attempts must be greater than or equal to min_attempts'
+          });
+        }
+      }
 
       // Kiểm tra exam_code đã tồn tại chưa (nếu có)
       if (exam_code) {
@@ -36,7 +58,12 @@ class QuizController {
         difficulty,
         exam_code,
         qr_code,
-        status
+        status,
+        subject,
+        grade,
+        duration,
+        min_attempts,
+        max_attempts
       });
 
       const quiz = await Quiz.findById(quizId);
@@ -60,11 +87,13 @@ class QuizController {
   static async getMyQuizzes(req, res) {
     try {
       const teacherId = req.user.id;
-      const { status, difficulty, search, page, limit } = req.query;
+      const { status, difficulty, subject, grade, search, page, limit } = req.query;
 
       const filters = {
         status,
         difficulty,
+        subject,
+        grade,
         search,
         page: page || 1,
         limit: limit || 20
@@ -73,9 +102,20 @@ class QuizController {
       const quizzes = await Quiz.findByTeacherId(teacherId, filters);
       const total = await Quiz.countByTeacherId(teacherId, { status });
 
+      // Add question count to each quiz
+      const quizzesWithQuestionCount = await Promise.all(
+        quizzes.map(async (quiz) => {
+          const questionCount = await Quiz.countQuestions(quiz.id);
+          return {
+            ...quiz,
+            total_questions: questionCount
+          };
+        })
+      );
+
       res.json({
         success: true,
-        data: quizzes,
+        data: quizzesWithQuestionCount,
         pagination: {
           page: parseInt(filters.page),
           limit: parseInt(filters.limit),
@@ -96,10 +136,12 @@ class QuizController {
   // Lấy danh sách quiz công khai (cho học sinh)
   static async getPublicQuizzes(req, res) {
     try {
-      const { difficulty, search, page, limit } = req.query;
+      const { difficulty, subject, grade, search, page, limit } = req.query;
 
       const filters = {
         difficulty,
+        subject,
+        grade,
         search,
         page: page || 1,
         limit: limit || 20
@@ -107,9 +149,20 @@ class QuizController {
 
       const quizzes = await Quiz.findPublicQuizzes(filters);
 
+      // trả thêm tổng câu hỏi trong quiz
+      const quizzesWithQuestionCount = await Promise.all(
+        quizzes.map(async (quiz) => {
+          const questionCount = await Quiz.countQuestions(quiz.id);
+          return {
+            ...quiz,
+            total_questions: questionCount
+          };
+        })
+      );
+
       res.json({
         success: true,
-        data: quizzes,
+        data: quizzesWithQuestionCount,
         pagination: {
           page: parseInt(filters.page),
           limit: parseInt(filters.limit)
@@ -296,7 +349,7 @@ class QuizController {
     try {
       const { id } = req.params;
       const { includeAnswers } = req.query;
-      
+
       const quiz = await Quiz.findById(id);
 
       if (!quiz) {

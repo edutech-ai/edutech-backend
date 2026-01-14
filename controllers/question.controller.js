@@ -15,7 +15,7 @@ class QuestionController {
         });
       }
 
-      const { quiz_id, document_id, content, options, correct_answer, type, point, explanation } = req.body;
+      const { quiz_id, document_id, content, options, correct_answer, type, point, explanation, difficulty } = req.body;
 
       // Kiểm tra quiz có tồn tại và user có quyền không
       const quiz = await Quiz.findById(quiz_id);
@@ -41,7 +41,8 @@ class QuestionController {
         correct_answer,
         type,
         point,
-        explanation
+        explanation,
+        difficulty
       });
 
       const question = await Question.findById(questionId);
