@@ -38,7 +38,11 @@ const profileValidation = [
   body('push_notification')
     .optional()
     .isBoolean()
-    .withMessage('Push notification must be boolean')
+    .withMessage('Push notification must be boolean'),
+  body('subject')
+    .optional()
+    .isIn(['TOAN', 'VAN', 'ANH', 'LY', 'HOA', 'SINH', 'SU', 'DIA', 'GDCD', 'TIN', 'CN'])
+    .withMessage('Subject must be one of: TOAN, VAN, ANH, LY, HOA, SINH, SU, DIA, GDCD, TIN, CN')
 ];
 
 module.exports = {

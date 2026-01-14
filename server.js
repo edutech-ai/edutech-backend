@@ -79,6 +79,8 @@ app.get("/health", async (req, res) => {
 app.use("/api/v1/auth", require("./routes/auth.route"));
 app.use("/api/v1/profile", require("./routes/profile.route"));
 app.use("/api/v1/settings", require("./routes/settings.route"));
+app.use("/api/v1/quizzes", require("./routes/quiz.route"));
+app.use("/api/v1/questions", require("./routes/question.route"));
 // app.use("/api/v1/users", require("./routes/user.route"));
 // Add more routes as needed
 

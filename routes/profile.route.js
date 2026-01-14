@@ -157,6 +157,11 @@ router.post('/', authenticate, profileValidation, ProfileController.createProfil
  *               push_notification:
  *                 type: boolean
  *                 example: true
+ *               subject:
+ *                 type: string
+ *                 enum: [TOAN, VAN, ANH, LY, HOA, SINH, SU, DIA, GDCD, TIN, CN]
+ *                 example: "TOAN"
+ *                 description: Môn dạy (chỉ dành cho TEACHER)
  *     responses:
  *       200:
  *         description: Cập nhật thành công

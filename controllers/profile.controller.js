@@ -107,6 +107,12 @@ class ProfileController {
         push_notification: toBoolean(req.body.push_notification)
       };
 
+      // Update subject trong users table nếu có
+      if (req.body.subject !== undefined) {
+        const User = require('../models/User');
+        await User.update(userId, { subject: req.body.subject });
+      }
+
       if (!existingProfile) {
         const newProfile = await UserProfile.create(userId, profileData);
         
