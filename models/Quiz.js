@@ -1,17 +1,64 @@
 const db = require('../config/database');
 const { v7: uuidv7 } = require('uuid');
+const { generateRandomCode } = require('../utils/code_generator');
+const { generateQRCodeDataURL } = require('../utils/qr_generator');
 
 class Quiz {
   // Tạo quiz mới
-  static async create({ teacher_id, title, description, difficulty = 'medium', exam_code, qr_code, status = 'draft' }) {
+  static async create({
+    teacher_id,
+    title,
+    description,
+    difficulty = 'medium',
+    exam_code,
+    qr_code,
+    status = 'draft',
+    subject,
+    grade,
+    duration,
+    min_attempts = 1,
+    max_attempts = null
+  }) {
     const quizId = uuidv7();
-    
+
+    // Auto-generate exam_code if not provided
+    if (!exam_code) {
+      // tạo mã exam_code để quản lí quiz, sau này có thể thêm pass để học sinh tham gia quiz
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      while (attempts < maxAttempts) {
+        const candidateCode = generateRandomCode(8);
+        const existing = await this.findByExamCode(candidateCode);
+
+        if (!existing) {
+          exam_code = candidateCode;
+          break;
+        }
+        attempts++;
+      }
+
+      if (!exam_code) {
+        throw new Error('Failed to generate unique exam code. Please try again.');
+      }
+    }
+
+    // Auto-generate QR code if not provided
+    if (!qr_code && exam_code) {
+      try {
+        qr_code = await generateQRCodeDataURL(exam_code);
+      } catch (error) {
+        console.error('QR code generation failed:', error);
+        // Continue without QR code if generation fails
+      }
+    }
+
     await db.query(
-      `INSERT INTO quizzes (id, teacher_id, title, description, difficulty, exam_code, qr_code, status) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [quizId, teacher_id, title, description, difficulty, exam_code, qr_code, status]
+      `INSERT INTO quizzes (id, teacher_id, title, description, difficulty, exam_code, qr_code, status, subject, grade, duration, min_attempts, max_attempts) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [quizId, teacher_id, title, description, difficulty, exam_code, qr_code, status, subject, grade, duration, min_attempts, max_attempts]
     );
-    
+
     return quizId;
   }
 
@@ -39,6 +86,16 @@ class Quiz {
     if (filters.difficulty) {
       query += ` AND difficulty = ?`;
       params.push(filters.difficulty);
+    }
+
+    if (filters.subject) {
+      query += ` AND subject = ?`;
+      params.push(filters.subject);
+    }
+
+    if (filters.grade) {
+      query += ` AND grade = ?`;
+      params.push(parseInt(filters.grade));
     }
 
     // Search by title
@@ -73,6 +130,16 @@ class Quiz {
     if (filters.difficulty) {
       query += ` AND q.difficulty = ?`;
       params.push(filters.difficulty);
+    }
+
+    if (filters.subject) {
+      query += ` AND q.subject = ?`;
+      params.push(filters.subject);
+    }
+
+    if (filters.grade) {
+      query += ` AND q.grade = ?`;
+      params.push(parseInt(filters.grade));
     }
 
     // Search by title
@@ -133,11 +200,31 @@ class Quiz {
       fields.push('status = ?');
       values.push(data.status);
     }
+    if (data.subject !== undefined) {
+      fields.push('subject = ?');
+      values.push(data.subject);
+    }
+    if (data.grade !== undefined) {
+      fields.push('grade = ?');
+      values.push(data.grade);
+    }
+    if (data.duration !== undefined) {
+      fields.push('duration = ?');
+      values.push(data.duration);
+    }
+    if (data.min_attempts !== undefined) {
+      fields.push('min_attempts = ?');
+      values.push(data.min_attempts);
+    }
+    if (data.max_attempts !== undefined) {
+      fields.push('max_attempts = ?');
+      values.push(data.max_attempts);
+    }
 
     if (fields.length === 0) return;
 
     values.push(id);
-    
+
     await db.query(
       `UPDATE quizzes SET ${fields.join(', ')} WHERE id = ? AND is_deleted = FALSE`,
       values

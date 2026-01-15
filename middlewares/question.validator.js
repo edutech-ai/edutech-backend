@@ -5,7 +5,7 @@ const createQuestionValidation = [
   body('quiz_id')
     .notEmpty().withMessage('Quiz ID is required')
     .isUUID().withMessage('Invalid quiz ID format'),
-  
+
   body('document_id')
     .optional({ nullable: true, checkFalsy: true })
     .custom((value) => {
@@ -18,26 +18,30 @@ const createQuestionValidation = [
       }
       return true;
     }),
-  
+
   body('content')
     .trim()
     .notEmpty().withMessage('Question content is required'),
-  
+
   body('options')
     .optional()
     .isArray().withMessage('Options must be an array'),
-  
+
   body('correct_answer')
     .notEmpty().withMessage('Correct answer is required'),
-  
+
   body('type')
     .optional()
     .isIn(['MCQ', 'ESSAY', 'TRUE_FALSE', 'MULTIPLE_ANSWER']).withMessage('Invalid question type'),
-  
+
   body('point')
     .optional()
     .isFloat({ min: 0 }).withMessage('Point must be a positive number'),
-  
+
+  body('difficulty')
+    .optional()
+    .isIn(['RECOGNITION', 'COMPREHENSION', 'APPLICATION', 'HIGH_APPLICATION']).withMessage('Difficulty must be RECOGNITION, COMPREHENSION, APPLICATION, or HIGH_APPLICATION'),
+
   body('explanation')
     .optional()
     .trim()
@@ -48,24 +52,28 @@ const bulkCreateQuestionsValidation = [
   body('quiz_id')
     .notEmpty().withMessage('Quiz ID is required')
     .isUUID().withMessage('Invalid quiz ID format'),
-  
+
   body('questions')
     .isArray({ min: 1 }).withMessage('Questions must be a non-empty array'),
-  
+
   body('questions.*.content')
     .trim()
     .notEmpty().withMessage('Question content is required'),
-  
+
   body('questions.*.correct_answer')
     .notEmpty().withMessage('Correct answer is required'),
-  
+
   body('questions.*.type')
     .optional()
     .isIn(['MCQ', 'ESSAY', 'TRUE_FALSE', 'MULTIPLE_ANSWER']).withMessage('Invalid question type'),
-  
+
   body('questions.*.point')
     .optional()
-    .isFloat({ min: 0 }).withMessage('Point must be a positive number')
+    .isFloat({ min: 0 }).withMessage('Point must be a positive number'),
+
+  body('questions.*.difficulty')
+    .optional()
+    .isIn(['RECOGNITION', 'COMPREHENSION', 'APPLICATION', 'HIGH_APPLICATION']).withMessage('Difficulty must be RECOGNITION, COMPREHENSION, APPLICATION, or HIGH_APPLICATION')
 ];
 
 // Validation cho cập nhật câu hỏi
@@ -73,31 +81,35 @@ const updateQuestionValidation = [
   param('id')
     .notEmpty().withMessage('Question ID is required')
     .isUUID().withMessage('Invalid question ID format'),
-  
+
   body('content')
     .optional()
     .trim()
     .notEmpty().withMessage('Question content cannot be empty'),
-  
+
   body('options')
     .optional()
     .isArray().withMessage('Options must be an array'),
-  
+
   body('correct_answer')
     .optional(),
-  
+
   body('type')
     .optional()
     .isIn(['MCQ', 'ESSAY', 'TRUE_FALSE', 'MULTIPLE_ANSWER']).withMessage('Invalid question type'),
-  
+
   body('point')
     .optional()
     .isFloat({ min: 0 }).withMessage('Point must be a positive number'),
-  
+
   body('explanation')
     .optional()
     .trim(),
-  
+
+  body('difficulty')
+    .optional()
+    .isIn(['RECOGNITION', 'COMPREHENSION', 'APPLICATION', 'HIGH_APPLICATION']).withMessage('Difficulty must be RECOGNITION, COMPREHENSION, APPLICATION, or HIGH_APPLICATION'),
+
   body('document_id')
     .optional({ nullable: true, checkFalsy: true })
     .custom((value) => {

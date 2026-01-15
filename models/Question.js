@@ -1,24 +1,37 @@
 const db = require('../config/database');
 const { v7: uuidv7 } = require('uuid');
 
+// Helper function to safely parse JSON
+const safeJSONParse = (str) => {
+  if (!str) return null;
+  if (typeof str !== 'string') return str;
+
+  try {
+    return JSON.parse(str);
+  } catch (e) {
+    console.warn('Failed to parse JSON, returning raw string:', str);
+    return str;
+  }
+};
+
 class Question {
   // Tạo câu hỏi mới
-  static async create({ quiz_id, document_id, content, options, correct_answer, type = 'MCQ', point = 1.0, explanation }) {
+  static async create({ quiz_id, document_id, content, options, correct_answer, type = 'MCQ', point = 1.0, explanation, difficulty = 'COMPREHENSION' }) {
     const questionId = uuidv7();
-    
+
     // Convert arrays/objects to JSON string
     const optionsJson = options ? JSON.stringify(options) : null;
     const correctAnswerJson = JSON.stringify(correct_answer);
-    
+
     // Convert empty string to null for document_id
     const documentIdValue = (document_id && document_id !== '') ? document_id : null;
-    
+
     await db.query(
-      `INSERT INTO questions (id, quiz_id, document_id, content, options, correct_answer, type, point, explanation) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [questionId, quiz_id, documentIdValue, content, optionsJson, correctAnswerJson, type, point, explanation]
+      `INSERT INTO questions (id, quiz_id, document_id, content, options, correct_answer, type, point, explanation, difficulty) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [questionId, quiz_id, documentIdValue, content, optionsJson, correctAnswerJson, type, point, explanation, difficulty]
     );
-    
+
     return questionId;
   }
 
@@ -28,21 +41,13 @@ class Question {
       `SELECT * FROM questions WHERE id = ? AND is_deleted = FALSE`,
       [id]
     );
-    
+
     if (rows[0]) {
-      // Parse JSON fields
-      if (rows[0].options) {
-        rows[0].options = typeof rows[0].options === 'string' 
-          ? JSON.parse(rows[0].options) 
-          : rows[0].options;
-      }
-      if (rows[0].correct_answer) {
-        rows[0].correct_answer = typeof rows[0].correct_answer === 'string' 
-          ? JSON.parse(rows[0].correct_answer) 
-          : rows[0].correct_answer;
-      }
+      // Parse JSON fields with error handling
+      rows[0].options = safeJSONParse(rows[0].options);
+      rows[0].correct_answer = safeJSONParse(rows[0].correct_answer);
     }
-    
+
     return rows[0];
   }
 
@@ -52,24 +57,18 @@ class Question {
       `SELECT * FROM questions WHERE quiz_id = ? AND is_deleted = FALSE ORDER BY created_at ASC`,
       [quizId]
     );
-    
+
     return rows.map(row => {
       // Parse JSON fields
-      if (row.options) {
-        row.options = typeof row.options === 'string' ? JSON.parse(row.options) : row.options;
-      }
-      if (row.correct_answer) {
-        row.correct_answer = typeof row.correct_answer === 'string' 
-          ? JSON.parse(row.correct_answer) 
-          : row.correct_answer;
-      }
-      
+      row.options = safeJSONParse(row.options);
+      row.correct_answer = safeJSONParse(row.correct_answer);
+
       // Ẩn đáp án nếu không cần thiết (cho học sinh làm bài)
       if (!includeAnswers) {
         delete row.correct_answer;
         delete row.explanation;
       }
-      
+
       return row;
     });
   }
@@ -80,16 +79,10 @@ class Question {
       `SELECT * FROM questions WHERE document_id = ? AND is_deleted = FALSE ORDER BY created_at ASC`,
       [documentId]
     );
-    
+
     return rows.map(row => {
-      if (row.options) {
-        row.options = typeof row.options === 'string' ? JSON.parse(row.options) : row.options;
-      }
-      if (row.correct_answer) {
-        row.correct_answer = typeof row.correct_answer === 'string' 
-          ? JSON.parse(row.correct_answer) 
-          : row.correct_answer;
-      }
+      row.options = safeJSONParse(row.options);
+      row.correct_answer = safeJSONParse(row.correct_answer);
       return row;
     });
   }
@@ -123,6 +116,10 @@ class Question {
       fields.push('explanation = ?');
       values.push(data.explanation);
     }
+    if (data.difficulty !== undefined) {
+      fields.push('difficulty = ?');
+      values.push(data.difficulty);
+    }
     if (data.document_id !== undefined) {
       fields.push('document_id = ?');
       // Convert empty string to null
@@ -132,7 +129,7 @@ class Question {
     if (fields.length === 0) return;
 
     values.push(id);
-    
+
     await db.query(
       `UPDATE questions SET ${fields.join(', ')} WHERE id = ? AND is_deleted = FALSE`,
       values
@@ -194,8 +191,8 @@ class Question {
       const correctAnswerJson = JSON.stringify(q.correct_answer);
       // Convert empty string to null for document_id
       const documentIdValue = (q.document_id && q.document_id !== '') ? q.document_id : null;
-      
-      placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?)');
+
+      placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
       values.push(
         questionId,
         q.quiz_id,
@@ -205,19 +202,20 @@ class Question {
         correctAnswerJson,
         q.type || 'MCQ',
         q.point || 1.0,
-        q.explanation || null
+        q.explanation || null,
+        q.difficulty || 'COMPREHENSION'
       );
     }
 
     if (placeholders.length === 0) return [];
 
     const query = `INSERT INTO questions 
-      (id, quiz_id, document_id, content, options, correct_answer, type, point, explanation) 
+      (id, quiz_id, document_id, content, options, correct_answer, type, point, explanation, difficulty) 
       VALUES ${placeholders.join(', ')}`;
 
     await db.query(query, values);
-    
-    return questions.map((q, index) => values[index * 9]); // Return IDs
+
+    return questions.map((q, index) => values[index * 10]); // Return IDs
   }
 }
 
