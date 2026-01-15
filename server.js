@@ -81,6 +81,8 @@ app.use("/api/v1/profile", require("./routes/profile.route"));
 app.use("/api/v1/settings", require("./routes/settings.route"));
 app.use("/api/v1/quizzes", require("./routes/quiz.route"));
 app.use("/api/v1/questions", require("./routes/question.route"));
+app.use("/api/v1/classrooms", require("./routes/classroom.route"));
+app.use("/api/v1/students", require("./routes/student.route"));
 // app.use("/api/v1/users", require("./routes/user.route"));
 // Add more routes as needed
 
