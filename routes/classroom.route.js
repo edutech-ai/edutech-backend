@@ -187,7 +187,62 @@ router.delete(
  * @swagger
  * /api/v1/classrooms/{classroomId}/students:
  *   post:
- *     summary: Thêm học sinh vào lớp
+ *     summary: Tạo học sinh mới và thêm vào lớp
+ *     tags: [Classrooms]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classroomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của lớp học
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - full_name
+ *               - student_code
+ *             properties:
+ *               full_name:
+ *                 type: string
+ *                 description: Họ tên học sinh
+ *               student_code:
+ *                 type: string
+ *                 description: Mã học sinh
+ *               phone_number:
+ *                 type: string
+ *                 description: Số điện thoại học sinh
+ *               parent_phone_number:
+ *                 type: string
+ *                 description: Số điện thoại phụ huynh
+ *               is_active:
+ *                 type: boolean
+ *                 description: Trạng thái hoạt động
+ *               status:
+ *                 type: string
+ *                 enum: [active, completed, dropped]
+ *                 description: Trạng thái học sinh trong lớp
+ *     responses:
+ *       201:
+ *         description: Tạo học sinh và thêm vào lớp thành công
+ */
+router.post(
+  '/:classroomId/students',
+  authenticate,
+  classroomValidator.createStudentAndAddToClassroom,
+  classroomController.createStudentAndAddToClassroom
+);
+
+/**
+ * @swagger
+ * /api/v1/classrooms/{classroomId}/students/add-existing:
+ *   post:
+ *     summary: Thêm học sinh đã tồn tại vào lớp
  *     tags: [Classrooms]
  *     security:
  *       - bearerAuth: []
@@ -209,15 +264,17 @@ router.delete(
  *             properties:
  *               student_id:
  *                 type: string
+ *                 description: ID học sinh đã tồn tại
  *               status:
  *                 type: string
  *                 enum: [active, completed, dropped]
+ *                 description: Trạng thái học sinh trong lớp
  *     responses:
  *       201:
- *         description: Thêm học sinh thành công
+ *         description: Thêm học sinh vào lớp thành công
  */
 router.post(
-  '/:classroomId/students',
+  '/:classroomId/students/add-existing',
   authenticate,
   classroomValidator.addStudentToClassroom,
   classroomController.addStudentToClassroom

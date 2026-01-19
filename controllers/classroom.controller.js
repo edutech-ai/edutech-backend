@@ -548,6 +548,77 @@ exports.addStudentToClassroom = async (req, res) => {
 };
 
 /**
+ * @desc    Tạo học sinh mới và thêm vào lớp
+ * @route   POST /api/v1/classrooms/:classroomId/students
+ * @access  Private (Teacher)
+ */
+exports.createStudentAndAddToClassroom = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false, 
+        errors: errors.array() 
+      });
+    }
+
+    const { classroomId } = req.params;
+    const { full_name, student_code, phone_number, parent_phone_number, is_active = true, status = 'active' } = req.body;
+    const teacher_id = req.user.id;
+
+    // Kiểm tra lớp học có thuộc giáo viên không
+    const classroom = await Classroom.findById(classroomId);
+
+    if (!classroom || classroom.teacher_id !== teacher_id) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy lớp học'
+      });
+    }
+
+    // Kiểm tra mã học sinh đã tồn tại chưa
+    const existingStudent = await Student.findByStudentCode(student_code);
+    if (existingStudent) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã học sinh đã tồn tại'
+      });
+    }
+
+    // Tạo học sinh mới
+    const studentId = await Student.create({
+      full_name,
+      student_code,
+      phone_number,
+      parent_phone_number,
+      is_active
+    });
+
+    // Thêm học sinh vào lớp
+    await ClassroomStudent.create({
+      classroom_id: classroomId,
+      student_id: studentId,
+      status
+    });
+
+    const student = await Student.findById(studentId);
+
+    res.status(201).json({
+      success: true,
+      message: 'Tạo học sinh và thêm vào lớp thành công',
+      data: student
+    });
+  } catch (error) {
+    console.error('Error creating student and adding to classroom:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi tạo học sinh và thêm vào lớp',
+      error: error.message
+    });
+  }
+};
+
+/**
  * @desc    Lấy danh sách học sinh trong lớp
  * @route   GET /api/classrooms/:classroomId/students
  * @access  Private (Teacher)

@@ -120,6 +120,29 @@ exports.addStudentToClassroom = [
     .isIn(['active', 'completed', 'dropped']).withMessage('Trạng thái không hợp lệ')
 ];
 
+exports.createStudentAndAddToClassroom = [
+  param('classroomId')
+    .isUUID().withMessage('ID lớp học không hợp lệ'),
+  body('full_name')
+    .notEmpty().withMessage('Họ tên học sinh không được để trống')
+    .isLength({ max: 255 }).withMessage('Họ tên không được vượt quá 255 ký tự'),
+  body('student_code')
+    .notEmpty().withMessage('Mã học sinh không được để trống')
+    .isLength({ max: 50 }).withMessage('Mã học sinh không được vượt quá 50 ký tự'),
+  body('phone_number')
+    .optional()
+    .matches(/^[0-9]{10,11}$/).withMessage('Số điện thoại không hợp lệ'),
+  body('parent_phone_number')
+    .optional()
+    .matches(/^[0-9]{10,11}$/).withMessage('Số điện thoại phụ huynh không hợp lệ'),
+  body('is_active')
+    .optional()
+    .isBoolean().withMessage('is_active phải là boolean'),
+  body('status')
+    .optional()
+    .isIn(['active', 'completed', 'dropped']).withMessage('Trạng thái không hợp lệ')
+];
+
 exports.removeStudentFromClassroom = [
   param('classroomId')
     .isUUID().withMessage('ID lớp học không hợp lệ'),
