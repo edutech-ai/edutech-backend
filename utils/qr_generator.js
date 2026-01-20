@@ -8,7 +8,7 @@ const QRCode = require('qrcode');
  */
 async function generateQRCodeDataURL(examCode, baseUrl = null) {
     try {
-        const url = baseUrl || process.env.FRONTEND_URL || 'https://go-edutech.vercel.app';
+        const url = baseUrl || process.env.FRONTEND_URL || 'https://aiedutech.vn';
         const quizJoinUrl = `${url}/quiz/join/${examCode}`;
 
         const qrCodeDataURL = await QRCode.toDataURL(quizJoinUrl, {
@@ -37,7 +37,7 @@ async function generateQRCodeDataURL(examCode, baseUrl = null) {
  */
 async function generateQRCodeBuffer(examCode, baseUrl = null) {
     try {
-        const url = baseUrl || process.env.FRONTEND_URL || 'https://go-edutech.vercel.app';
+        const url = baseUrl || process.env.FRONTEND_URL || 'https://aiedutech.vn';
         const quizJoinUrl = `${url}/quiz/join/${examCode}`;
 
         const qrCodeBuffer = await QRCode.toBuffer(quizJoinUrl, {
