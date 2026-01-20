@@ -20,7 +20,12 @@ const server = http.createServer(app);
 // CORS Configuration
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://aiedutech.vn", "https://www.aiedutech.vn"],
+    origin: [
+      "http://localhost:3000",
+      "https://go-edutech.vercel.app",
+      "https://aiedutech.vn",
+      "https://www.aiedutech.vn"
+    ],
     credentials: true,
   })
 );
