@@ -17,8 +17,7 @@ const sepayConfig = {
   // Webhook Secret (for signature verification)
   webhookSecret: process.env.SEPAY_WEBHOOK_SECRET || '',
   
-  // Callback URLs
-  returnUrl: process.env.SEPAY_RETURN_URL || `${process.env.FRONTEND_URL}/payment/result`,
+  // Webhook URL (configured in SePay dashboard)
   webhookUrl: process.env.SEPAY_WEBHOOK_URL || '',
   
   // Payment Settings
