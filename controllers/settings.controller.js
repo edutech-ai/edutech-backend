@@ -1,10 +1,10 @@
-const PricePlan = require('../models/PricePlan');
+const SubscriptionPlan = require('../models/SubscriptionPlan');
 const FAQ = require('../models/FAQ');
 const { validationResult } = require('express-validator');
 
 class SettingsController {
-    // Tạo price plan mới
-    static async createPricePlan(req, res) {
+    // Tạo subscription plan mới
+    static async createSubscriptionPlan(req, res) {
         try {
             // Kiểm tra validation errors
             const errors = validationResult(req);
@@ -17,48 +17,59 @@ class SettingsController {
             }
 
             const {
-                plan_name,
+                code,
+                name,
                 description,
                 price,
-                discount_percent,
-                billing_type,
-                button_text,
-                benefits,
-                display_order
+                currency,
+                durationDays,
+                maxClasses,
+                maxQuizzesPerMonth,
+                maxStorageMb,
+                hasAdvancedAi,
+                features,
+                displayOrder
             } = req.body;
 
-            const planId = await PricePlan.create({
-                plan_name,
+            const newPlan = await SubscriptionPlan.create({
+                code,
+                name,
                 description,
                 price,
-                discount_percent,
-                billing_type,
-                button_text,
-                benefits,
-                display_order
+                currency: currency || 'VND',
+                durationDays: durationDays || 30,
+                maxClasses,
+                maxQuizzesPerMonth,
+                maxStorageMb,
+                hasAdvancedAi: hasAdvancedAi || false,
+                features,
+                displayOrder: displayOrder || 0
             });
-
-            const newPlan = await PricePlan.findById(planId);
 
             return res.status(201).json({
                 success: true,
-                message: 'Price plan created successfully',
+                message: 'Subscription plan created successfully',
                 data: newPlan
             });
         } catch (error) {
-            // console.error('Create price plan error:', error);
+            // console.error('Create subscription plan error:', error);
             return res.status(500).json({
                 success: false,
-                message: 'Failed to create price plan',
+                message: 'Failed to create subscription plan',
                 error: error.message
             });
         }
     }
 
-    static async getAllPricePlans(req, res) {
+    static async getAllSubscriptionPlans(req, res) {
         try {
             const activeOnly = req.query.active !== 'false';
-            const plans = await PricePlan.findAll(activeOnly);
+            const whereClause = activeOnly ? { isActive: true } : {};
+            
+            const plans = await SubscriptionPlan.findAll({
+                where: whereClause,
+                order: [['displayOrder', 'ASC'], ['createdAt', 'ASC']]
+            });
 
             return res.status(200).json({
                 success: true,
@@ -66,24 +77,24 @@ class SettingsController {
                 count: plans.length
             });
         } catch (error) {
-            // console.error('Get all price plans error:', error);
+            // console.error('Get all subscription plans error:', error);
             return res.status(500).json({
                 success: false,
-                message: 'Failed to fetch price plans',
+                message: 'Failed to fetch subscription plans',
                 error: error.message
             });
         }
     }
 
-    static async getPricePlanById(req, res) {
+    static async getSubscriptionPlanById(req, res) {
         try {
             const { id } = req.params;
-            const plan = await PricePlan.findById(id);
+            const plan = await SubscriptionPlan.findByPk(id);
 
             if (!plan) {
                 return res.status(404).json({
                     success: false,
-                    message: 'Price plan not found'
+                    message: 'Subscription plan not found'
                 });
             }
 
@@ -92,16 +103,16 @@ class SettingsController {
                 data: plan
             });
         } catch (error) {
-            // console.error('Get price plan by ID error:', error);
+            // console.error('Get subscription plan by ID error:', error);
             return res.status(500).json({
                 success: false,
-                message: 'Failed to fetch price plan',
+                message: 'Failed to fetch subscription plan',
                 error: error.message
             });
         }
     }
 
-    static async updatePricePlan(req, res) {
+    static async updateSubscriptionPlan(req, res) {
         try {
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
@@ -114,69 +125,54 @@ class SettingsController {
 
             const { id } = req.params;
 
-            const existingPlan = await PricePlan.findById(id);
+            const existingPlan = await SubscriptionPlan.findByPk(id);
             if (!existingPlan) {
                 return res.status(404).json({
                     success: false,
-                    message: 'Price plan not found'
+                    message: 'Subscription plan not found'
                 });
             }
 
-            const updated = await PricePlan.update(id, req.body);
-
-            if (!updated) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'No changes made'
-                });
-            }
-
-            const updatedPlan = await PricePlan.findById(id);
+            await existingPlan.update(req.body);
 
             return res.status(200).json({
                 success: true,
-                message: 'Price plan updated successfully',
-                data: updatedPlan
+                message: 'Subscription plan updated successfully',
+                data: existingPlan
             });
         } catch (error) {
-            // console.error('Update price plan error:', error);
+            // console.error('Update subscription plan error:', error);
             return res.status(500).json({
                 success: false,
-                message: 'Failed to update price plan',
+                message: 'Failed to update subscription plan',
                 error: error.message
             });
         }
     }
 
-    static async deletePricePlan(req, res) {
+    static async deleteSubscriptionPlan(req, res) {
         try {
             const { id } = req.params;
-            const existingPlan = await PricePlan.findById(id);
+            const existingPlan = await SubscriptionPlan.findByPk(id);
             if (!existingPlan) {
                 return res.status(404).json({
                     success: false,
-                    message: 'Price plan not found'
+                    message: 'Subscription plan not found'
                 });
             }
 
-            const deleted = await PricePlan.delete(id);
-
-            if (!deleted) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Failed to delete price plan'
-                });
-            }
+            // Soft delete
+            await existingPlan.update({ isActive: false });
 
             return res.status(200).json({
                 success: true,
-                message: 'Price plan deleted successfully'
+                message: 'Subscription plan deleted successfully'
             });
         } catch (error) {
-            // console.error('Delete price plan error:', error);
+            // console.error('Delete subscription plan error:', error);
             return res.status(500).json({
                 success: false,
-                message: 'Failed to delete price plan',
+                message: 'Failed to delete subscription plan',
                 error: error.message
             });
         }

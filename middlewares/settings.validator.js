@@ -1,12 +1,19 @@
 const { body } = require('express-validator');
 
-const createPricePlanValidation = [
-    body('plan_name')
+const createSubscriptionPlanValidation = [
+    body('code')
         .trim()
         .notEmpty()
-        .withMessage('Plan name is required')
-        .isLength({ max: 200 })
-        .withMessage('Plan name must not exceed 200 characters'),
+        .withMessage('Code is required')
+        .isLength({ max: 50 })
+        .withMessage('Code must not exceed 50 characters'),
+
+    body('name')
+        .trim()
+        .notEmpty()
+        .withMessage('Name is required')
+        .isLength({ max: 255 })
+        .withMessage('Name must not exceed 255 characters'),
 
     body('description')
         .optional()
@@ -18,48 +25,70 @@ const createPricePlanValidation = [
         .isFloat({ min: 0 })
         .withMessage('Price must be a positive number'),
 
-    body('discount_percent')
-        .optional()
-        .isFloat({ min: 0, max: 100 })
-        .withMessage('Discount percent must be between 0 and 100'),
-
-    body('billing_type')
-        .notEmpty()
-        .withMessage('Billing type is required')
-        .isIn(['monthly', 'yearly'])
-        .withMessage('Billing type must be either monthly or yearly'),
-
-    body('button_text')
+    body('currency')
         .optional()
         .trim()
-        .isLength({ max: 100 })
-        .withMessage('Button text must not exceed 100 characters'),
+        .isLength({ max: 10 })
+        .withMessage('Currency must not exceed 10 characters'),
 
-    body('benefits')
+    body('durationDays')
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage('Duration days must be a positive integer'),
+
+    body('maxClasses')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('Max classes must be a non-negative integer'),
+
+    body('maxQuizzesPerMonth')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('Max quizzes per month must be a non-negative integer'),
+
+    body('maxStorageMb')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('Max storage MB must be a non-negative integer'),
+
+    body('hasAdvancedAi')
+        .optional()
+        .isBoolean()
+        .withMessage('Has advanced AI must be a boolean'),
+
+    body('features')
         .optional()
         .isArray()
-        .withMessage('Benefits must be an array'),
+        .withMessage('Features must be an array'),
 
-    body('benefits.*')
+    body('features.*')
         .optional()
         .trim()
         .notEmpty()
-        .withMessage('Benefit item cannot be empty'),
+        .withMessage('Feature item cannot be empty'),
 
-    body('display_order')
+    body('displayOrder')
         .optional()
         .isInt({ min: 0 })
         .withMessage('Display order must be a positive integer')
 ];
 
-const updatePricePlanValidation = [
-    body('plan_name')
+const updateSubscriptionPlanValidation = [
+    body('code')
         .optional()
         .trim()
         .notEmpty()
-        .withMessage('Plan name cannot be empty')
-        .isLength({ max: 200 })
-        .withMessage('Plan name must not exceed 200 characters'),
+        .withMessage('Code cannot be empty')
+        .isLength({ max: 50 })
+        .withMessage('Code must not exceed 50 characters'),
+
+    body('name')
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage('Name cannot be empty')
+        .isLength({ max: 255 })
+        .withMessage('Name must not exceed 255 characters'),
 
     body('description')
         .optional()
@@ -70,39 +99,54 @@ const updatePricePlanValidation = [
         .isFloat({ min: 0 })
         .withMessage('Price must be a positive number'),
 
-    body('discount_percent')
-        .optional()
-        .isFloat({ min: 0, max: 100 })
-        .withMessage('Discount percent must be between 0 and 100'),
-
-    body('billing_type')
-        .optional()
-        .isIn(['monthly', 'yearly'])
-        .withMessage('Billing type must be either monthly or yearly'),
-
-    body('button_text')
+    body('currency')
         .optional()
         .trim()
-        .isLength({ max: 100 })
-        .withMessage('Button text must not exceed 100 characters'),
+        .isLength({ max: 10 })
+        .withMessage('Currency must not exceed 10 characters'),
 
-    body('benefits')
+    body('durationDays')
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage('Duration days must be a positive integer'),
+
+    body('maxClasses')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('Max classes must be a non-negative integer'),
+
+    body('maxQuizzesPerMonth')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('Max quizzes per month must be a non-negative integer'),
+
+    body('maxStorageMb')
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage('Max storage MB must be a non-negative integer'),
+
+    body('hasAdvancedAi')
+        .optional()
+        .isBoolean()
+        .withMessage('Has advanced AI must be a boolean'),
+
+    body('features')
         .optional()
         .isArray()
-        .withMessage('Benefits must be an array'),
+        .withMessage('Features must be an array'),
 
-    body('benefits.*')
+    body('features.*')
         .optional()
         .trim()
         .notEmpty()
-        .withMessage('Benefit item cannot be empty'),
+        .withMessage('Feature item cannot be empty'),
 
-    body('is_active')
+    body('isActive')
         .optional()
         .isBoolean()
-        .withMessage('is_active must be a boolean'),
+        .withMessage('Is active must be a boolean'),
 
-    body('display_order')
+    body('displayOrder')
         .optional()
         .isInt({ min: 0 })
         .withMessage('Display order must be a positive integer')
@@ -163,8 +207,8 @@ const updateFAQValidation = [
 ];
 
 module.exports = {
-    createPricePlanValidation,
-    updatePricePlanValidation,
+    createSubscriptionPlanValidation,
+    updateSubscriptionPlanValidation,
     createFAQValidation,
     updateFAQValidation
 };

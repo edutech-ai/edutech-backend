@@ -2,8 +2,8 @@ const express = require('express');
 const SettingsController = require('../controllers/settings.controller');
 const { authenticate, authorizeAdmin } = require('../middlewares/auth');
 const {
-    createPricePlanValidation,
-    updatePricePlanValidation,
+    createSubscriptionPlanValidation,
+    updateSubscriptionPlanValidation,
     createFAQValidation,
     updateFAQValidation
 } = require('../middlewares/settings.validator');
@@ -21,16 +21,20 @@ const router = express.Router();
  * @swagger
  * components:
  *   schemas:
- *     PricePlan:
+ *     SubscriptionPlan:
  *       type: object
  *       properties:
  *         id:
  *           type: string
- *           description: UUID of the price plan
- *         plan_name:
+ *           description: UUID of the subscription plan
+ *         code:
  *           type: string
- *           description: Name of the pricing plan
- *           example: Free
+ *           description: Unique code for the plan
+ *           example: FREE
+ *         name:
+ *           type: string
+ *           description: Name of the subscription plan
+ *           example: Free Plan
  *         description:
  *           type: string
  *           description: Description of the plan
@@ -39,46 +43,57 @@ const router = express.Router();
  *           type: number
  *           description: Price in VND
  *           example: 0
- *         discount_percent:
- *           type: number
- *           description: Discount percentage (0-100)
- *           example: 0
- *         billing_type:
+ *         currency:
  *           type: string
- *           enum: [monthly, yearly]
- *           description: Billing cycle type
- *           example: monthly
- *         button_text:
- *           type: string
- *           description: Text displayed on the action button
- *           example: Đăng ký free
- *         benefits:
+ *           description: Currency code
+ *           example: VND
+ *         durationDays:
+ *           type: integer
+ *           description: Duration in days
+ *           example: 30
+ *         maxClasses:
+ *           type: integer
+ *           description: Maximum number of classes
+ *           example: 5
+ *         maxQuizzesPerMonth:
+ *           type: integer
+ *           description: Maximum quizzes per month
+ *           example: 10
+ *         maxStorageMb:
+ *           type: integer
+ *           description: Maximum storage in MB
+ *           example: 100
+ *         hasAdvancedAi:
+ *           type: boolean
+ *           description: Whether plan has advanced AI features
+ *           example: false
+ *         features:
  *           type: array
  *           items:
  *             type: string
- *           description: List of plan benefits
+ *           description: List of plan features
  *           example: ["Quản lí lớp học cơ bản", "Giao diện trực quan"]
- *         is_active:
+ *         isActive:
  *           type: boolean
  *           description: Whether the plan is active
  *           example: true
- *         display_order:
+ *         displayOrder:
  *           type: integer
  *           description: Display order for sorting
  *           example: 1
- *         created_at:
+ *         createdAt:
  *           type: string
  *           format: date-time
- *         updated_at:
+ *         updatedAt:
  *           type: string
  *           format: date-time
  */
 
 /**
  * @swagger
- * /api/v1/settings/price-plans:
+ * /api/v1/settings/subscription-plans:
  *   get:
- *     summary: Lấy danh sách tất cả price plans
+ *     summary: Lấy danh sách tất cả subscription plans
  *     tags: [Settings]
  *     parameters:
  *       - in: query
@@ -89,7 +104,7 @@ const router = express.Router();
  *         description: Chỉ lấy plans đang active (true) hoặc tất cả (false)
  *     responses:
  *       200:
- *         description: Danh sách price plans
+ *         description: Danh sách subscription plans
  *         content:
  *           application/json:
  *             schema:
@@ -100,19 +115,19 @@ const router = express.Router();
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/PricePlan'
+ *                     $ref: '#/components/schemas/SubscriptionPlan'
  *                 count:
  *                   type: integer
  *       500:
  *         description: Server error
  */
-router.get('/price-plans', SettingsController.getAllPricePlans);
+router.get('/subscription-plans', SettingsController.getAllSubscriptionPlans);
 
 /**
  * @swagger
- * /api/v1/settings/price-plans/{id}:
+ * /api/v1/settings/subscription-plans/{id}:
  *   get:
- *     summary: Lấy thông tin chi tiết một price plan
+ *     summary: Lấy thông tin chi tiết một subscription plan
  *     tags: [Settings]
  *     parameters:
  *       - in: path
@@ -120,10 +135,10 @@ router.get('/price-plans', SettingsController.getAllPricePlans);
  *         required: true
  *         schema:
  *           type: string
- *         description: ID của price plan
+ *         description: ID của subscription plan
  *     responses:
  *       200:
- *         description: Thông tin price plan
+ *         description: Thông tin subscription plan
  *         content:
  *           application/json:
  *             schema:
@@ -132,19 +147,19 @@ router.get('/price-plans', SettingsController.getAllPricePlans);
  *                 success:
  *                   type: boolean
  *                 data:
- *                   $ref: '#/components/schemas/PricePlan'
+ *                   $ref: '#/components/schemas/SubscriptionPlan'
  *       404:
- *         description: Price plan không tồn tại
+ *         description: Subscription plan không tồn tại
  *       500:
  *         description: Server error
  */
-router.get('/price-plans/:id', SettingsController.getPricePlanById);
+router.get('/subscription-plans/:id', SettingsController.getSubscriptionPlanById);
 
 /**
  * @swagger
- * /api/v1/settings/price-plans:
+ * /api/v1/settings/subscription-plans:
  *   post:
- *     summary: Tạo price plan mới
+ *     summary: Tạo subscription plan mới
  *     tags: [Settings]
  *     security:
  *       - bearerAuth: []
@@ -155,40 +170,51 @@ router.get('/price-plans/:id', SettingsController.getPricePlanById);
  *           schema:
  *             type: object
  *             required:
- *               - plan_name
+ *               - code
+ *               - name
  *               - price
- *               - billing_type
  *             properties:
- *               plan_name:
+ *               code:
  *                 type: string
- *                 example: Free
+ *                 example: FREE
+ *               name:
+ *                 type: string
+ *                 example: Free Plan
  *               description:
  *                 type: string
  *                 example: Giáo viên mới bắt đầu
  *               price:
  *                 type: number
  *                 example: 0
- *               discount_percent:
- *                 type: number
- *                 example: 0
- *               billing_type:
+ *               currency:
  *                 type: string
- *                 enum: [monthly, yearly]
- *                 example: monthly
- *               button_text:
- *                 type: string
- *                 example: Đăng ký free
- *               benefits:
+ *                 example: VND
+ *               durationDays:
+ *                 type: integer
+ *                 example: 30
+ *               maxClasses:
+ *                 type: integer
+ *                 example: 5
+ *               maxQuizzesPerMonth:
+ *                 type: integer
+ *                 example: 10
+ *               maxStorageMb:
+ *                 type: integer
+ *                 example: 100
+ *               hasAdvancedAi:
+ *                 type: boolean
+ *                 example: false
+ *               features:
  *                 type: array
  *                 items:
  *                   type: string
  *                 example: ["Quản lí lớp học cơ bản", "Giao diện trực quan"]
- *               display_order:
+ *               displayOrder:
  *                 type: integer
  *                 example: 1
  *     responses:
  *       201:
- *         description: Price plan được tạo thành công
+ *         description: Subscription plan được tạo thành công
  *         content:
  *           application/json:
  *             schema:
@@ -199,7 +225,7 @@ router.get('/price-plans/:id', SettingsController.getPricePlanById);
  *                 message:
  *                   type: string
  *                 data:
- *                   $ref: '#/components/schemas/PricePlan'
+ *                   $ref: '#/components/schemas/SubscriptionPlan'
  *       400:
  *         description: Dữ liệu không hợp lệ
  *       401:
@@ -209,13 +235,13 @@ router.get('/price-plans/:id', SettingsController.getPricePlanById);
  *       500:
  *         description: Server error
  */
-router.post('/price-plans', authenticate, authorizeAdmin, createPricePlanValidation, SettingsController.createPricePlan);
+router.post('/subscription-plans', authenticate, authorizeAdmin, createSubscriptionPlanValidation, SettingsController.createSubscriptionPlan);
 
 /**
  * @swagger
- * /api/v1/settings/price-plans/{id}:
+ * /api/v1/settings/subscription-plans/{id}:
  *   put:
- *     summary: Cập nhật price plan
+ *     summary: Cập nhật subscription plan
  *     tags: [Settings]
  *     security:
  *       - bearerAuth: []
@@ -225,7 +251,7 @@ router.post('/price-plans', authenticate, authorizeAdmin, createPricePlanValidat
  *         required: true
  *         schema:
  *           type: string
- *         description: ID của price plan
+ *         description: ID của subscription plan
  *     requestBody:
  *       required: true
  *       content:
@@ -233,30 +259,37 @@ router.post('/price-plans', authenticate, authorizeAdmin, createPricePlanValidat
  *           schema:
  *             type: object
  *             properties:
- *               plan_name:
+ *               code:
+ *                 type: string
+ *               name:
  *                 type: string
  *               description:
  *                 type: string
  *               price:
  *                 type: number
- *               discount_percent:
- *                 type: number
- *               billing_type:
+ *               currency:
  *                 type: string
- *                 enum: [monthly, yearly]
- *               button_text:
- *                 type: string
- *               benefits:
+ *               durationDays:
+ *                 type: integer
+ *               maxClasses:
+ *                 type: integer
+ *               maxQuizzesPerMonth:
+ *                 type: integer
+ *               maxStorageMb:
+ *                 type: integer
+ *               hasAdvancedAi:
+ *                 type: boolean
+ *               features:
  *                 type: array
  *                 items:
  *                   type: string
- *               is_active:
+ *               isActive:
  *                 type: boolean
- *               display_order:
+ *               displayOrder:
  *                 type: integer
  *     responses:
  *       200:
- *         description: Price plan được cập nhật thành công
+ *         description: Subscription plan được cập nhật thành công
  *         content:
  *           application/json:
  *             schema:
@@ -267,7 +300,7 @@ router.post('/price-plans', authenticate, authorizeAdmin, createPricePlanValidat
  *                 message:
  *                   type: string
  *                 data:
- *                   $ref: '#/components/schemas/PricePlan'
+ *                   $ref: '#/components/schemas/SubscriptionPlan'
  *       400:
  *         description: Dữ liệu không hợp lệ
  *       401:
@@ -275,17 +308,17 @@ router.post('/price-plans', authenticate, authorizeAdmin, createPricePlanValidat
  *       403:
  *         description: Không có quyền admin
  *       404:
- *         description: Price plan không tồn tại
+ *         description: Subscription plan không tồn tại
  *       500:
  *         description: Server error
  */
-router.put('/price-plans/:id', authenticate, authorizeAdmin, updatePricePlanValidation, SettingsController.updatePricePlan);
+router.put('/subscription-plans/:id', authenticate, authorizeAdmin, updateSubscriptionPlanValidation, SettingsController.updateSubscriptionPlan);
 
 /**
  * @swagger
- * /api/v1/settings/price-plans/{id}:
+ * /api/v1/settings/subscription-plans/{id}:
  *   delete:
- *     summary: Xóa price plan - Soft delete
+ *     summary: Xóa subscription plan - Soft delete
  *     tags: [Settings]
  *     security:
  *       - bearerAuth: []
@@ -295,10 +328,10 @@ router.put('/price-plans/:id', authenticate, authorizeAdmin, updatePricePlanVali
  *         required: true
  *         schema:
  *           type: string
- *         description: ID của price plan
+ *         description: ID của subscription plan
  *     responses:
  *       200:
- *         description: Price plan được xóa thành công
+ *         description: Subscription plan được xóa thành công
  *         content:
  *           application/json:
  *             schema:
@@ -313,11 +346,11 @@ router.put('/price-plans/:id', authenticate, authorizeAdmin, updatePricePlanVali
  *       403:
  *         description: Không có quyền admin
  *       404:
- *         description: Price plan không tồn tại
+ *         description: Subscription plan không tồn tại
  *       500:
  *         description: Server error
  */
-router.delete('/price-plans/:id', authenticate, authorizeAdmin, SettingsController.deletePricePlan);
+router.delete('/subscription-plans/:id', authenticate, authorizeAdmin, SettingsController.deleteSubscriptionPlan);
 
 // ==================== FAQ Routes ====================
 
