@@ -61,21 +61,24 @@ exports.updateScore = [
 ];
 
 // Hand Raise Validators
-exports.saveWeeklyHandRaises = [
+exports.batchUpdateHandRaises = [
   param('classroomId')
     .isUUID().withMessage('ID lớp học không hợp lệ'),
-  body('week_start_date')
-    .optional()
-    .isISO8601().withMessage('Ngày bắt đầu tuần không hợp lệ'),
   body('students')
     .isArray({ min: 1 }).withMessage('Danh sách học sinh phải là mảng và có ít nhất 1 học sinh'),
   body('students.*.student_id')
     .isUUID().withMessage('ID học sinh không hợp lệ'),
-  body('students.*.raise_count')
-    .isInt({ min: 0 }).withMessage('Số lần giơ tay phải là số nguyên không âm'),
-  body('students.*.notes')
-    .optional()
-    .isString().withMessage('Ghi chú phải là chuỗi')
+  body('students.*.add_count')
+    .isInt({ min: 0 }).withMessage('Số lần giơ tay phải là số nguyên không âm')
+];
+
+exports.updateHandRaiseTotal = [
+  param('classroomId')
+    .isUUID().withMessage('ID lớp học không hợp lệ'),
+  param('studentId')
+    .isUUID().withMessage('ID học sinh không hợp lệ'),
+  body('total_hand_raises')
+    .isInt({ min: 0 }).withMessage('Tổng số lần giơ tay phải là số nguyên không âm')
 ];
 
 // Performance Validators

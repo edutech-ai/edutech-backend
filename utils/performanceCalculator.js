@@ -10,7 +10,7 @@ async function recalculatePerformance(classroomId, studentId) {
     // 1. Lấy thống kê điểm
     const scoreStats = await StudentScore.getStatistics(classroomId, studentId);
     
-    // 2. Lấy thống kê giơ tay
+    // 2. Lấy thống kê giơ tay (đã tính avg per week dựa vào created_at)
     const handRaiseStats = await StudentHandRaise.getStatistics(classroomId, studentId);
     
     // 3. Tính performance level
@@ -25,9 +25,9 @@ async function recalculatePerformance(classroomId, studentId) {
       average_score: scoreStats.average_score,
       highest_score: scoreStats.highest_score,
       lowest_score: scoreStats.lowest_score,
-      total_weeks_tracked: handRaiseStats.total_weeks_tracked,
       total_hand_raises: handRaiseStats.total_hand_raises,
       avg_hand_raises_per_week: handRaiseStats.avg_hand_raises_per_week,
+      weeks_tracked: handRaiseStats.weeks_tracked,
       performance_level: performanceLevel
     });
     
@@ -39,7 +39,7 @@ async function recalculatePerformance(classroomId, studentId) {
       average_score: scoreStats.average_score,
       highest_score: scoreStats.highest_score,
       lowest_score: scoreStats.lowest_score,
-      total_weeks_tracked: handRaiseStats.total_weeks_tracked || 0,
+      total_weeks_tracked: handRaiseStats.weeks_tracked || 0,
       total_hand_raises: handRaiseStats.total_hand_raises || 0,
       avg_hand_raises_per_week: handRaiseStats.avg_hand_raises_per_week || 0,
       performance_level: performanceLevel,
@@ -84,19 +84,20 @@ function generateSystemEvaluation(metrics) {
   const evaluations = [];
   
   // Đánh giá điểm số
-  if (metrics.total_exams === 0) {
+  if (metrics.total_exams === 0 || !metrics.average_score) {
     evaluations.push("Chưa có dữ liệu điểm kiểm tra");
   } else {
-    if (metrics.average_score >= 9) {
-      evaluations.push(`Điểm số xuất sắc (${metrics.average_score.toFixed(2)}/10)`);
-    } else if (metrics.average_score >= 8) {
-      evaluations.push(`Điểm số rất tốt (${metrics.average_score.toFixed(2)}/10)`);
-    } else if (metrics.average_score >= 6.5) {
-      evaluations.push(`Điểm số khá (${metrics.average_score.toFixed(2)}/10)`);
-    } else if (metrics.average_score >= 5) {
-      evaluations.push(`Điểm số trung bình (${metrics.average_score.toFixed(2)}/10)`);
+    const avgScore = parseFloat(metrics.average_score) || 0;
+    if (avgScore >= 9) {
+      evaluations.push(`Điểm số xuất sắc (${avgScore.toFixed(2)}/10)`);
+    } else if (avgScore >= 8) {
+      evaluations.push(`Điểm số rất tốt (${avgScore.toFixed(2)}/10)`);
+    } else if (avgScore >= 6.5) {
+      evaluations.push(`Điểm số khá (${avgScore.toFixed(2)}/10)`);
+    } else if (avgScore >= 5) {
+      evaluations.push(`Điểm số trung bình (${avgScore.toFixed(2)}/10)`);
     } else {
-      evaluations.push(`Cần cải thiện điểm số (${metrics.average_score.toFixed(2)}/10)`);
+      evaluations.push(`Cần cải thiện điểm số (${avgScore.toFixed(2)}/10)`);
     }
     
     if (metrics.total_exams > 0) {
@@ -105,17 +106,22 @@ function generateSystemEvaluation(metrics) {
   }
   
   // Đánh giá tham gia
-  if (metrics.total_weeks_tracked === 0) {
+  if (!metrics.total_hand_raises || metrics.total_hand_raises === 0) {
     evaluations.push("Chưa có dữ liệu tham gia");
   } else {
-    const avgRaises = metrics.avg_hand_raises_per_week;
+    const avgRaises = parseFloat(metrics.avg_hand_raises_per_week) || 0;
+    const totalRaises = metrics.total_hand_raises || 0;
+    const weeksTracked = metrics.weeks_tracked || 0;
+    
+    evaluations.push(`Tổng ${totalRaises} lần giơ tay trong ${weeksTracked} tuần`);
+    
     if (avgRaises >= 10) {
       evaluations.push(`Tham gia tích cực (${avgRaises.toFixed(1)} lần/tuần)`);
     } else if (avgRaises >= 5) {
       evaluations.push(`Tham gia khá tốt (${avgRaises.toFixed(1)} lần/tuần)`);
     } else if (avgRaises >= 2) {
       evaluations.push(`Tham gia trung bình (${avgRaises.toFixed(1)} lần/tuần)`);
-    } else {
+    } else if (avgRaises > 0) {
       evaluations.push(`Cần tham gia nhiều hơn (${avgRaises.toFixed(1)} lần/tuần)`);
     }
   }
@@ -176,22 +182,9 @@ async function recalculateClassroomPerformance(classroomId) {
   }
 }
 
-/**
- * Lấy ngày bắt đầu tuần (Thứ 2)
- */
-function getWeekStartDate(date = new Date()) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Điều chỉnh về thứ 2
-  const monday = new Date(d.setDate(diff));
-  monday.setHours(0, 0, 0, 0);
-  return monday.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-}
-
 module.exports = {
   recalculatePerformance,
   recalculateClassroomPerformance,
   evaluatePerformanceLevel,
-  generateSystemEvaluation,
-  getWeekStartDate
+  generateSystemEvaluation
 };

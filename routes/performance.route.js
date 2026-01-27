@@ -302,9 +302,10 @@ router.post(
 
 /**
  * @swagger
- * /api/v1/classrooms/{classroomId}/hand-raises/weekly:
+ * /api/v1/classrooms/{classroomId}/hand-raises/batch:
  *   post:
- *     summary: Lưu/Cập nhật giơ tay cho nhiều học sinh trong 1 tuần
+ *     summary: Batch cập nhật giơ tay cho nhiều học sinh (cuối giờ)
+ *     description: Frontend track số lần giơ tay trong giờ học, cuối giờ gọi API này 1 lần để cộng thêm vào total. Giảm load server.
  *     tags: [Performance]
  *     security:
  *       - bearerAuth: []
@@ -323,37 +324,66 @@ router.post(
  *             required:
  *               - students
  *             properties:
- *               week_start_date:
- *                 type: string
- *                 format: date
- *                 description: Ngày bắt đầu tuần (Thứ 2). Nếu không có, sẽ lấy tuần hiện tại
  *               students:
  *                 type: array
  *                 items:
  *                   type: object
+ *                   required:
+ *                     - student_id
+ *                     - add_count
  *                   properties:
  *                     student_id:
  *                       type: string
- *                     raise_count:
+ *                       format: uuid
+ *                     add_count:
  *                       type: integer
- *                     notes:
- *                       type: string
+ *                       minimum: 0
+ *                       description: Số lần giơ tay trong buổi học (sẽ cộng thêm vào total)
+ *             example:
+ *               students:
+ *                 - student_id: "019bf979-67fc-76e7-8604-99d7e12e9693"
+ *                   add_count: 5
+ *                 - student_id: "019bf980-0590-75ed-82ef-71d7fdad79ed"
+ *                   add_count: 3
  *     responses:
  *       200:
- *         description: Lưu thành công
+ *         description: Cập nhật thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     successCount:
+ *                       type: integer
+ *                     errorCount:
+ *                       type: integer
+ *                     success:
+ *                       type: array
+ *                     errors:
+ *                       type: array
  */
 router.post(
-  '/classrooms/:classroomId/hand-raises/weekly',
+  '/classrooms/:classroomId/hand-raises/batch',
   authenticate,
-  performanceValidator.saveWeeklyHandRaises,
-  handRaiseController.saveWeeklyHandRaises
+  performanceValidator.batchUpdateHandRaises,
+  handRaiseController.batchUpdateHandRaises
 );
 
 /**
  * @swagger
- * /api/v1/classrooms/{classroomId}/hand-raises/weekly:
- *   get:
- *     summary: Lấy dữ liệu giơ tay của tất cả học sinh trong 1 tuần
+ * /api/v1/classrooms/{classroomId}/students/{studentId}/hand-raises:
+ *   put:
+ *     summary: Cập nhật tổng số lần giơ tay (thủ công)
+ *     description: Dùng để sửa lại tổng số lần giơ tay nếu cần (ví dụ sửa lỗi nhập)
  *     tags: [Performance]
  *     security:
  *       - bearerAuth: []
@@ -363,27 +393,65 @@ router.post(
  *         required: true
  *         schema:
  *           type: string
- *       - in: query
- *         name: week_start_date
+ *       - in: path
+ *         name: studentId
+ *         required: true
  *         schema:
  *           type: string
- *           format: date
- *         description: Nếu không có, sẽ lấy tuần hiện tại
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - total_hand_raises
+ *             properties:
+ *               total_hand_raises:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Tổng số lần giơ tay mới (ghi đè total cũ)
  *     responses:
  *       200:
- *         description: Lấy dữ liệu thành công
+ *         description: Cập nhật thành công
+ */
+router.put(
+  '/classrooms/:classroomId/students/:studentId/hand-raises',
+  authenticate,
+  performanceValidator.updateHandRaiseTotal,
+  handRaiseController.updateHandRaiseTotal
+);
+
+/**
+ * @swagger
+ * /api/v1/classrooms/{classroomId}/hand-raises:
+ *   get:
+ *     summary: Lấy danh sách giơ tay của tất cả học sinh trong lớp
+ *     tags: [Performance]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classroomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách thành công
  */
 router.get(
-  '/classrooms/:classroomId/hand-raises/weekly',
+  '/classrooms/:classroomId/hand-raises',
   authenticate,
-  handRaiseController.getWeeklyHandRaises
+  handRaiseController.getClassroomHandRaises
 );
 
 /**
  * @swagger
  * /api/v1/classrooms/{classroomId}/students/{studentId}/hand-raises:
  *   get:
- *     summary: Lấy lịch sử giơ tay của một học sinh
+ *     summary: Lấy thông tin giơ tay của một học sinh
+ *     description: Trả về tổng số lần, avg per week, first/last raise date
  *     tags: [Performance]
  *     security:
  *       - bearerAuth: []
@@ -400,30 +468,41 @@ router.get(
  *           type: string
  *     responses:
  *       200:
- *         description: Lấy lịch sử thành công
+ *         description: Lấy thông tin thành công
  */
 router.get(
   '/classrooms/:classroomId/students/:studentId/hand-raises',
   authenticate,
-  handRaiseController.getStudentHandRaises
+  handRaiseController.getStudentHandRaise
 );
 
 /**
  * @swagger
- * /api/v1/utils/current-week:
- *   get:
- *     summary: Lấy ngày bắt đầu và kết thúc tuần hiện tại
+ * /api/v1/classrooms/{classroomId}/students/{studentId}/hand-raises:
+ *   delete:
+ *     summary: Xóa dữ liệu giơ tay của học sinh (reset về 0)
  *     tags: [Performance]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classroomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: studentId
+ *         required: true
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
- *         description: Thành công
+ *         description: Xóa thành công
  */
-router.get(
-  '/utils/current-week',
+router.delete(
+  '/classrooms/:classroomId/students/:studentId/hand-raises',
   authenticate,
-  handRaiseController.getCurrentWeek
+  handRaiseController.deleteHandRaise
 );
 
 // ============================================================
