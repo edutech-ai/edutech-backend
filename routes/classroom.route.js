@@ -1,8 +1,30 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const classroomController = require('../controllers/classroom.controller');
 const classroomValidator = require('../middlewares/classroom.validator');
 const { authenticate } = require('../middlewares/auth');
+
+// Cấu hình multer để upload file
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  },
+  fileFilter: (req, file, cb) => {
+    // Chỉ chấp nhận file xlsx, xls
+    const allowedMimes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel' // .xls
+    ];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Chỉ chấp nhận file Excel (.xlsx, .xls)'));
+    }
+  }
+});
 
 // ============================================================
 // CLASSROOM ROUTES
@@ -278,6 +300,99 @@ router.post(
   authenticate,
   classroomValidator.addStudentToClassroom,
   classroomController.addStudentToClassroom
+);
+
+/**
+ * @swagger
+ * /api/v1/classrooms/{classroomId}/students/upload:
+ *   post:
+ *     summary: Upload danh sách học sinh từ file XLSX và gán vào lớp học
+ *     tags: [Classrooms]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classroomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của lớp học
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: File Excel (.xlsx hoặc .xls) chứa danh sách học sinh. Các cột bắt buộc - student_code (mã học sinh), full_name (họ tên), phone (số điện thoại - tùy chọn), parent_phone (số điện thoại phụ huynh - tùy chọn)
+ *     responses:
+ *       200:
+ *         description: Upload thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: number
+ *                     successCount:
+ *                       type: number
+ *                     createdCount:
+ *                       type: number
+ *                       description: Số học sinh mới được tạo
+ *                     addedCount:
+ *                       type: number
+ *                       description: Số học sinh đã tồn tại được thêm vào lớp
+ *                     existingCount:
+ *                       type: number
+ *                       description: Số học sinh đã có trong lớp
+ *                     errorCount:
+ *                       type: number
+ *                     success:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     created:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     added:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     existing:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     errors:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *       400:
+ *         description: Lỗi validation hoặc file không hợp lệ
+ *       403:
+ *         description: Không có quyền thêm học sinh vào lớp này
+ *       404:
+ *         description: Không tìm thấy lớp học
+ */
+router.post(
+  '/:classroomId/students/upload',
+  authenticate,
+  upload.single('file'),
+  classroomValidator.uploadStudentsToClassroom,
+  classroomController.uploadStudentsToClassroom
 );
 
 /**

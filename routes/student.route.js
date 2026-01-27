@@ -1,8 +1,30 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const classroomController = require('../controllers/classroom.controller');
 const classroomValidator = require('../middlewares/classroom.validator');
 const { authenticate } = require('../middlewares/auth');
+
+// Cấu hình multer để upload file
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  },
+  fileFilter: (req, file, cb) => {
+    // Chỉ chấp nhận file xlsx, xls
+    const allowedMimes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel' // .xls
+    ];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Chỉ chấp nhận file Excel (.xlsx, .xls)'));
+    }
+  }
+});
 
 // ============================================================
 // STUDENT ROUTES
@@ -45,6 +67,67 @@ router.post(
   authenticate,
   classroomValidator.createStudent,
   classroomController.createStudent
+);
+
+/**
+ * @swagger
+ * /api/v1/students/upload:
+ *   post:
+ *     summary: Upload danh sách học sinh từ file XLSX
+ *     tags: [Students]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: File Excel (.xlsx hoặc .xls) chứa danh sách học sinh. Các cột bắt buộc - student_code (mã học sinh), full_name (họ tên), phone (số điện thoại - tùy chọn), parent_phone (số điện thoại phụ huynh - tùy chọn)
+ *     responses:
+ *       200:
+ *         description: Upload thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: number
+ *                     successCount:
+ *                       type: number
+ *                     errorCount:
+ *                       type: number
+ *                     success:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     errors:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *       400:
+ *         description: Lỗi validation hoặc file không hợp lệ
+ */
+router.post(
+  '/upload',
+  authenticate,
+  upload.single('file'),
+  classroomValidator.uploadStudentsXLSX,
+  classroomController.uploadStudentsXLSX
 );
 
 /**

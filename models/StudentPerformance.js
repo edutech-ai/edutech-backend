@@ -3,7 +3,20 @@ const { v7: uuidv7 } = require('uuid');
 
 class StudentPerformance {
   // Tạo hoặc cập nhật performance
-  static async upsert({ classroom_id, student_id, total_exams, average_score, subject_performance, strong_topic, weak_topic }) {
+  static async upsert({ 
+    classroom_id, 
+    student_id, 
+    total_exams, 
+    average_score, 
+    highest_score,
+    lowest_score,
+    total_weeks_tracked,
+    total_hand_raises,
+    avg_hand_raises_per_week,
+    performance_level,
+    system_evaluation,
+    teacher_notes
+  }) {
     const existing = await this.findOne(classroom_id, student_id);
     
     if (existing) {
@@ -11,26 +24,38 @@ class StudentPerformance {
       return await this.update(classroom_id, student_id, {
         total_exams,
         average_score,
-        subject_performance,
-        strong_topic,
-        weak_topic
+        highest_score,
+        lowest_score,
+        total_weeks_tracked,
+        total_hand_raises,
+        avg_hand_raises_per_week,
+        performance_level,
+        system_evaluation,
+        teacher_notes
       });
     } else {
       // Create
       const performanceId = uuidv7();
       await db.query(
         `INSERT INTO student_performance 
-         (id, classroom_id, student_id, total_exams, average_score, subject_performance, strong_topic, weak_topic, last_calculated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+         (id, classroom_id, student_id, total_exams, average_score, highest_score, lowest_score,
+          total_weeks_tracked, total_hand_raises, avg_hand_raises_per_week, 
+          performance_level, system_evaluation, teacher_notes, last_calculated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         [
           performanceId,
           classroom_id,
           student_id,
           total_exams || 0,
           average_score,
-          JSON.stringify(subject_performance),
-          JSON.stringify(strong_topic),
-          JSON.stringify(weak_topic)
+          highest_score,
+          lowest_score,
+          total_weeks_tracked || 0,
+          total_hand_raises || 0,
+          avg_hand_raises_per_week || 0,
+          performance_level,
+          system_evaluation,
+          teacher_notes
         ]
       );
       return performanceId;
@@ -44,13 +69,6 @@ class StudentPerformance {
        WHERE classroom_id = ? AND student_id = ?`,
       [classroomId, studentId]
     );
-    
-    if (rows[0]) {
-      // Parse JSON fields
-      rows[0].subject_performance = rows[0].subject_performance ? JSON.parse(rows[0].subject_performance) : null;
-      rows[0].strong_topic = rows[0].strong_topic ? JSON.parse(rows[0].strong_topic) : null;
-      rows[0].weak_topic = rows[0].weak_topic ? JSON.parse(rows[0].weak_topic) : null;
-    }
     
     return rows[0];
   }
@@ -68,17 +86,37 @@ class StudentPerformance {
       fields.push('average_score = ?');
       values.push(data.average_score);
     }
-    if (data.subject_performance !== undefined) {
-      fields.push('subject_performance = ?');
-      values.push(JSON.stringify(data.subject_performance));
+    if (data.highest_score !== undefined) {
+      fields.push('highest_score = ?');
+      values.push(data.highest_score);
     }
-    if (data.strong_topic !== undefined) {
-      fields.push('strong_topic = ?');
-      values.push(JSON.stringify(data.strong_topic));
+    if (data.lowest_score !== undefined) {
+      fields.push('lowest_score = ?');
+      values.push(data.lowest_score);
     }
-    if (data.weak_topic !== undefined) {
-      fields.push('weak_topic = ?');
-      values.push(JSON.stringify(data.weak_topic));
+    if (data.total_weeks_tracked !== undefined) {
+      fields.push('total_weeks_tracked = ?');
+      values.push(data.total_weeks_tracked);
+    }
+    if (data.total_hand_raises !== undefined) {
+      fields.push('total_hand_raises = ?');
+      values.push(data.total_hand_raises);
+    }
+    if (data.avg_hand_raises_per_week !== undefined) {
+      fields.push('avg_hand_raises_per_week = ?');
+      values.push(data.avg_hand_raises_per_week);
+    }
+    if (data.performance_level !== undefined) {
+      fields.push('performance_level = ?');
+      values.push(data.performance_level);
+    }
+    if (data.system_evaluation !== undefined) {
+      fields.push('system_evaluation = ?');
+      values.push(data.system_evaluation);
+    }
+    if (data.teacher_notes !== undefined) {
+      fields.push('teacher_notes = ?');
+      values.push(data.teacher_notes);
     }
 
     fields.push('last_calculated_at = NOW()');
@@ -93,25 +131,50 @@ class StudentPerformance {
     }
   }
 
-  // Lấy bảng xếp hạng lớp
-  static async getLeaderboard(classroomId, limit = 20) {
+  // Lấy bảng xếp hạng lớp (theo điểm)
+  static async getLeaderboard(classroomId, orderBy = 'score', limit = 20) {
+    let orderByClause = 'sp.average_score DESC';
+    
+    if (orderBy === 'participation') {
+      orderByClause = 'sp.avg_hand_raises_per_week DESC';
+    } else if (orderBy === 'overall') {
+      orderByClause = `
+        CASE sp.performance_level
+          WHEN 'excellent' THEN 5
+          WHEN 'good' THEN 4
+          WHEN 'average' THEN 3
+          WHEN 'needs_improvement' THEN 2
+          WHEN 'at_risk' THEN 1
+          ELSE 0
+        END DESC, sp.average_score DESC
+      `;
+    }
+
     const [rows] = await db.query(
       `SELECT sp.*, s.full_name, s.student_code
        FROM student_performance sp
        JOIN students s ON sp.student_id = s.id
        WHERE sp.classroom_id = ?
-       ORDER BY sp.average_score DESC
+       ORDER BY ${orderByClause}
        LIMIT ?`,
       [classroomId, limit]
     );
 
-    // Parse JSON fields
-    return rows.map(row => ({
-      ...row,
-      subject_performance: row.subject_performance ? JSON.parse(row.subject_performance) : null,
-      strong_topic: row.strong_topic ? JSON.parse(row.strong_topic) : null,
-      weak_topic: row.weak_topic ? JSON.parse(row.weak_topic) : null
-    }));
+    return rows;
+  }
+
+  // Lấy tất cả performance của lớp
+  static async findByClassroom(classroomId) {
+    const [rows] = await db.query(
+      `SELECT sp.*, s.full_name, s.student_code
+       FROM student_performance sp
+       JOIN students s ON sp.student_id = s.id
+       WHERE sp.classroom_id = ?
+       ORDER BY s.full_name ASC`,
+      [classroomId]
+    );
+
+    return rows;
   }
 
   // Xóa performance của lớp

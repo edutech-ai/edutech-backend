@@ -197,3 +197,12 @@ exports.getStudentPerformance = [
   param('studentId')
     .isUUID().withMessage('ID học sinh không hợp lệ')
 ];
+
+// Upload Students Validator
+exports.uploadStudentsXLSX = [];
+
+// Upload Students to Classroom Validator
+exports.uploadStudentsToClassroom = [
+  param('classroomId')
+    .isUUID().withMessage('ID lớp học không hợp lệ')
+];

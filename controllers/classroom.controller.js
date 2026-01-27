@@ -3,6 +3,7 @@ const Classroom = require('../models/Classroom');
 const Student = require('../models/Student');
 const ClassroomStudent = require('../models/ClassroomStudent');
 const StudentPerformance = require('../models/StudentPerformance');
+const xlsx = require('xlsx');
 
 // ============================================================
 // CLASSROOM CRUD
@@ -923,6 +924,321 @@ exports.getClassroomLeaderboard = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy bảng xếp hạng',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Upload danh sách học sinh từ file XLSX
+ * @route   POST /api/students/upload
+ * @access  Private (Teacher)
+ */
+exports.uploadStudentsXLSX = async (req, res) => {
+  try {
+    // Kiểm tra file có được upload không
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng upload file XLSX'
+      });
+    }
+
+    // Đọc file XLSX
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Chuyển đổi dữ liệu từ worksheet sang JSON
+    const data = xlsx.utils.sheet_to_json(worksheet);
+
+    if (!data || data.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'File không có dữ liệu'
+      });
+    }
+
+    const results = {
+      success: [],
+      errors: [],
+      total: data.length
+    };
+
+    // Xử lý từng học sinh
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNumber = i + 2; // +2 vì bắt đầu từ hàng 2 (hàng 1 là header)
+
+      try {
+        // Validate dữ liệu
+        const student_code = row.student_code?.toString().trim();
+        const full_name = row.full_name?.toString().trim();
+        const phone_number = row.phone?.toString().trim() || null;
+        const parent_phone_number = row.parent_phone?.toString().trim() || null;
+
+        // Kiểm tra các field bắt buộc
+        if (!student_code || !full_name) {
+          results.errors.push({
+            row: rowNumber,
+            data: row,
+            message: 'Thiếu mã học sinh hoặc tên học sinh'
+          });
+          continue;
+        }
+
+        // Kiểm tra mã học sinh đã tồn tại chưa
+        const existingStudent = await Student.findByStudentCode(student_code);
+        if (existingStudent) {
+          results.errors.push({
+            row: rowNumber,
+            data: row,
+            message: `Mã học sinh ${student_code} đã tồn tại`
+          });
+          continue;
+        }
+
+        // Tạo học sinh mới
+        const studentId = await Student.create({
+          full_name,
+          student_code,
+          phone_number,
+          parent_phone_number,
+          is_active: true
+        });
+
+        results.success.push({
+          row: rowNumber,
+          student_code,
+          full_name,
+          id: studentId
+        });
+
+      } catch (error) {
+        results.errors.push({
+          row: rowNumber,
+          data: row,
+          message: error.message
+        });
+      }
+    }
+
+    // Trả về kết quả
+    res.status(200).json({
+      success: true,
+      message: `Đã xử lý ${results.total} học sinh`,
+      data: {
+        total: results.total,
+        successCount: results.success.length,
+        errorCount: results.errors.length,
+        success: results.success,
+        errors: results.errors
+      }
+    });
+
+  } catch (error) {
+    console.error('Error uploading students XLSX:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi upload file XLSX',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Upload danh sách học sinh từ file XLSX và gán vào lớp học
+ * @route   POST /api/classrooms/:classroomId/students/upload
+ * @access  Private (Teacher)
+ */
+exports.uploadStudentsToClassroom = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false, 
+        errors: errors.array() 
+      });
+    }
+
+    // Kiểm tra file có được upload không
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng upload file XLSX'
+      });
+    }
+
+    const { classroomId } = req.params;
+    const teacher_id = req.user.id;
+
+    // Kiểm tra lớp học tồn tại và thuộc về giáo viên
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy lớp học'
+      });
+    }
+
+    if (classroom.teacher_id !== teacher_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bạn không có quyền thêm học sinh vào lớp này'
+      });
+    }
+
+    // Đọc file XLSX
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Chuyển đổi dữ liệu từ worksheet sang JSON
+    const data = xlsx.utils.sheet_to_json(worksheet);
+
+    if (!data || data.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'File không có dữ liệu'
+      });
+    }
+
+    const results = {
+      success: [],
+      errors: [],
+      total: data.length,
+      created: [],
+      added: [],
+      existing: []
+    };
+
+    // Xử lý từng học sinh
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNumber = i + 2; // +2 vì bắt đầu từ hàng 2 (hàng 1 là header)
+
+      try {
+        // Validate dữ liệu
+        const student_code = row.student_code?.toString().trim();
+        const full_name = row.full_name?.toString().trim();
+        const phone_number = row.phone?.toString().trim() || null;
+        const parent_phone_number = row.parent_phone?.toString().trim() || null;
+
+        // Kiểm tra các field bắt buộc
+        if (!student_code || !full_name) {
+          results.errors.push({
+            row: rowNumber,
+            data: row,
+            message: 'Thiếu mã học sinh hoặc tên học sinh'
+          });
+          continue;
+        }
+
+        let studentId;
+        let isNewStudent = false;
+
+        // Kiểm tra mã học sinh đã tồn tại chưa
+        const existingStudent = await Student.findByStudentCode(student_code);
+        if (existingStudent) {
+          studentId = existingStudent.id;
+          
+          // Kiểm tra học sinh đã có trong lớp chưa
+          const inClassroom = await ClassroomStudent.exists(classroomId, studentId);
+          if (inClassroom) {
+            results.existing.push({
+              row: rowNumber,
+              student_code,
+              full_name,
+              message: 'Học sinh đã có trong lớp'
+            });
+            continue;
+          }
+        } else {
+          // Tạo học sinh mới
+          studentId = await Student.create({
+            full_name,
+            student_code,
+            phone_number,
+            parent_phone_number,
+            is_active: true
+          });
+          isNewStudent = true;
+          results.created.push({
+            row: rowNumber,
+            student_code,
+            full_name,
+            id: studentId
+          });
+        }
+
+        // Thêm học sinh vào lớp
+        await ClassroomStudent.create({
+          classroom_id: classroomId,
+          student_id: studentId,
+          status: 'active'
+        });
+
+        // Tạo bản ghi performance cho học sinh trong lớp
+        await StudentPerformance.upsert({
+          classroom_id: classroomId,
+          student_id: studentId,
+          total_exams: 0,
+          average_score: null,
+          subject_performance: null,
+          strong_topic: null,
+          weak_topic: null
+        });
+
+        results.success.push({
+          row: rowNumber,
+          student_code,
+          full_name,
+          id: studentId,
+          isNew: isNewStudent
+        });
+
+        if (!isNewStudent) {
+          results.added.push({
+            row: rowNumber,
+            student_code,
+            full_name,
+            id: studentId
+          });
+        }
+
+      } catch (error) {
+        results.errors.push({
+          row: rowNumber,
+          data: row,
+          message: error.message
+        });
+      }
+    }
+
+    // Trả về kết quả
+    res.status(200).json({
+      success: true,
+      message: `Đã xử lý ${results.total} học sinh. Tạo mới: ${results.created.length}, Thêm vào lớp: ${results.added.length}, Đã có trong lớp: ${results.existing.length}, Lỗi: ${results.errors.length}`,
+      data: {
+        total: results.total,
+        successCount: results.success.length,
+        createdCount: results.created.length,
+        addedCount: results.added.length,
+        existingCount: results.existing.length,
+        errorCount: results.errors.length,
+        success: results.success,
+        created: results.created,
+        added: results.added,
+        existing: results.existing,
+        errors: results.errors
+      }
+    });
+
+  } catch (error) {
+    console.error('Error uploading students to classroom:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi upload danh sách học sinh vào lớp',
       error: error.message
     });
   }
