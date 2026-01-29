@@ -66,10 +66,19 @@ app.get("/", (req, res) => {
 app.get("/health", async (req, res) => {
   try {
     await db.query("SELECT 1");
+    
+    // Check timezone
+    const [tzResult] = await db.query("SELECT @@session.time_zone as tz, NOW() as db_time");
+    const timezone = tzResult[0].tz;
+    const dbTime = tzResult[0].db_time;
+    
     res.json({
       status: "healthy",
       database: "connected",
       timestamp: new Date().toISOString(),
+      serverTime: new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+      databaseTimezone: timezone,
+      databaseTime: dbTime
     });
   } catch (error) {
     res.status(503).json({
@@ -93,6 +102,7 @@ app.use("/api/v1/documents", require("./routes/document.route"));
 app.use("/api/v1/library", require("./routes/library.route"));
 app.use("/api/v1/payment", require("./routes/payment.route"));
 app.use("/api/v1", require("./routes/performance.route"));
+app.use("/api/v1/admin", require("./routes/admin.route"));
 // app.use("/api/v1/users", require("./routes/user.route"));
 // Add more routes as needed
 

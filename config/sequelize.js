@@ -10,11 +10,14 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 3306,
     dialect: 'mysql',
-    timezone: '+07:00',
+    timezone: '+07:00', // Múi giờ Việt Nam (UTC+7)
     dialectOptions: {
       ssl: {
         rejectUnauthorized: true
-      }
+      },
+      timezone: '+07:00',
+      // Set timezone trong connection
+      connectTimeout: 60000
     },
     pool: {
       max: 10,
