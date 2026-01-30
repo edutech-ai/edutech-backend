@@ -145,10 +145,10 @@ router.post('/verify-register', verifyRegisterValidation, AuthController.verifyR
  *               email:
  *                 type: string
  *                 format: email
- *                 example: teacher@example.com
+ *                 example: kettek9812@gmail.com
  *               password:
  *                 type: string
- *                 example: password123
+ *                 example: Test@1234
  *     responses:
  *       200:
  *         description: Đăng nhập thành công

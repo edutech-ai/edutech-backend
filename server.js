@@ -93,6 +93,7 @@ app.use("/api/v1/documents", require("./routes/document.route"));
 app.use("/api/v1/library", require("./routes/library.route"));
 app.use("/api/v1/payment", require("./routes/payment.route"));
 app.use("/api/v1", require("./routes/performance.route"));
+app.use("/api/v1/ai", require("./routes/ai.route"));
 // app.use("/api/v1/users", require("./routes/user.route"));
 // Add more routes as needed
 
