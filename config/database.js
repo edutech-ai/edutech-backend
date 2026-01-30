@@ -6,7 +6,7 @@ const pool = mysql.createPool({
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'exe201_db',
     port: process.env.DB_PORT || 3306,
-    timezone: '+07:00', // Giờ VN
+    timezone: '+07:00', // Giờ VN (UTC+7)
     ssl: {
         rejectUnauthorized: true
     },
@@ -17,6 +17,11 @@ const pool = mysql.createPool({
     // Keep alive
     keepAliveInitialDelay: 0,
     enableKeepAlive: true
+});
+
+// Set timezone for each connection
+pool.on('connection', (connection) => {
+    connection.query("SET time_zone = '+07:00'");
 });
 
 // Test connection
