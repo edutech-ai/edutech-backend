@@ -22,9 +22,22 @@ class ClassroomStudent {
   // Lấy danh sách học sinh trong lớp
   static async findByClassroomId(classroomId, status = null) {
     let query = `
-      SELECT cs.*, s.full_name, s.student_code, s.phone_number, s.parent_phone_number, s.is_active
+      SELECT 
+        cs.classroom_id,
+        cs.student_id,
+        cs.joined_at,
+        cs.status,
+        s.full_name, 
+        s.student_code, 
+        s.phone_number, 
+        s.parent_phone_number, 
+        s.is_active,
+        ROUND(AVG(ss.score), 2) as average_score,
+        COALESCE(shr.total_hand_raises, 0) as total_hand_raises
       FROM classroom_students cs
       JOIN students s ON cs.student_id = s.id
+      LEFT JOIN student_scores ss ON cs.student_id = ss.student_id AND cs.classroom_id = ss.classroom_id
+      LEFT JOIN student_hand_raises shr ON cs.student_id = shr.student_id AND cs.classroom_id = shr.classroom_id
       WHERE cs.classroom_id = ?
     `;
     const params = [classroomId];
@@ -34,6 +47,7 @@ class ClassroomStudent {
       params.push(status);
     }
 
+    query += ' GROUP BY cs.classroom_id, cs.student_id, cs.joined_at, cs.status, s.full_name, s.student_code, s.phone_number, s.parent_phone_number, s.is_active, shr.total_hand_raises';
     query += ' ORDER BY cs.joined_at DESC';
 
     const [rows] = await db.query(query, params);

@@ -419,6 +419,45 @@ router.post(
  *     responses:
  *       200:
  *         description: Lấy danh sách thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       classroom_id:
+ *                         type: string
+ *                       student_id:
+ *                         type: string
+ *                       joined_at:
+ *                         type: string
+ *                         format: date-time
+ *                       status:
+ *                         type: string
+ *                         enum: [active, completed, dropped]
+ *                       full_name:
+ *                         type: string
+ *                       student_code:
+ *                         type: string
+ *                       phone_number:
+ *                         type: string
+ *                       parent_phone_number:
+ *                         type: string
+ *                       is_active:
+ *                         type: boolean
+ *                       average_score:
+ *                         type: number
+ *                         format: float
+ *                         description: Điểm trung bình của học sinh (tính từ tất cả các bài thi trong lớp)
+ *                         nullable: true
  */
 router.get(
   '/:classroomId/students',
