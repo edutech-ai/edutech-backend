@@ -50,7 +50,7 @@ const createQuizWithQuestionsValidator = [
     .isLength({ max: 500 })
     .withMessage('Chủ đề phải có độ dài tối đa 500 ký tự'),
 
-    // for MVP, max is 25
+  // for MVP, max is 25
   body('numberOfQuestions')
     .optional()
     .isInt({ min: 1, max: 25 })
@@ -73,6 +73,23 @@ const createQuizWithQuestionsValidator = [
     .withMessage('quizMatrix must be an object'),
 ];
 
+const analyzeQuizValidator = [
+  body('quiz_id')
+    .notEmpty()
+    .withMessage('quiz_id là bắt buộc')
+    .isString()
+    .trim()
+    .withMessage('quiz_id phải là chuỗi UUID hợp lệ'),
+
+  body('description')
+    .optional()
+    .isString()
+    .trim()
+    .isLength({ max: 2000 })
+    .withMessage('Mô tả bổ sung phải có độ dài tối đa 2000 ký tự'),
+];
+
 module.exports = {
   createQuizWithQuestionsValidator,
+  analyzeQuizValidator,
 };

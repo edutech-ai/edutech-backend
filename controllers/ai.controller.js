@@ -103,6 +103,112 @@ class AIController {
       });
     }
   }
+
+  /**
+   * Analyze quiz quality using AI
+   * POST /api/v1/ai/analyze-quiz
+   */
+  static async analyzeQuiz(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Xác thực thất bại',
+          errors: errors.array()
+        });
+      }
+
+      const { quiz_id, description } = req.body;
+      const teacherId = req.user.id;
+
+      // 1. Get quiz with questions from database
+      const quiz = await Quiz.findByIdWithDetails(quiz_id);
+
+      if (!quiz) {
+        return res.status(404).json({
+          success: false,
+          message: 'Không tìm thấy đề thi'
+        });
+      }
+
+      // 2. Check permission
+      if (quiz.teacher_id !== teacherId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Bạn không có quyền phân tích đề thi này'
+        });
+      }
+
+      // 3. Get questions for this quiz
+      const questions = await Question.findByQuizId(quiz_id, true);
+
+      // 4. Validate quiz has questions
+      if (!questions || questions.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Đề thi chưa có câu hỏi nào. Vui lòng thêm câu hỏi trước khi phân tích.'
+        });
+      }
+
+      // 5. Prepare quiz data for AI analysis with full context
+      const quizData = {
+        quiz: {
+          id: quiz.id,
+          title: quiz.title,
+          description: quiz.description,
+          subject: quiz.subject,
+          grade: quiz.grade,
+          difficulty: quiz.difficulty,
+          total_time: quiz.duration ? `${quiz.duration} phút` : 'Không giới hạn',
+          user_description: description
+        },
+        questions: questions.map(q => ({
+          id: q.id,
+          content: q.content,
+          type: q.type,
+          point: q.point,
+          answer: q.options,
+          correct_answer: q.correct_answer,
+          difficulty: q.difficulty
+        })),
+        total: questions.length
+      };
+
+      // 4. Send to AI for analysis
+      const result = await cozeService.analyzeQuiz(quizData);
+
+      if (!result.success) {
+        return res.status(500).json({
+          success: false,
+          message: 'Phân tích đề thi thất bại',
+          error: result.error,
+          rawContent: result.rawContent
+        });
+      }
+
+      // 5. Return analysis
+      res.status(200).json({
+        success: true,
+        message: 'Phân tích đề thi thành công',
+        data: result.data,
+        metadata: {
+          quiz_id: quiz.id,
+          quiz_title: quiz.title,
+          analyzed_at: new Date().toISOString(),
+          chatId: result.chatId,
+          conversationId: result.conversationId
+        }
+      });
+    } catch (error) {
+      console.error('Error analyzing quiz:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Phân tích đề thi thất bại',
+        error: error.message
+      });
+    }
+  }
 }
 
 module.exports = AIController;

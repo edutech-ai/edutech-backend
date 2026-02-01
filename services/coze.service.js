@@ -149,6 +149,77 @@ Trả về dưới dạng JSON với cấu trúc:
       };
     }
   }
+
+  /**
+   * Analyze quiz quality and provide feedback
+   * @param {Object} quizData - Quiz data with questions
+   * @returns {Object} Analysis result from AI
+   */
+  async analyzeQuiz(quizData) {
+    try {
+      // Send the quiz data in clean JSON format
+      const prompt = JSON.stringify(quizData, null, 2);
+
+      // 1. Create chat with ANALYZE bot
+      const chatRes = await this.client.post('/v3/chat', {
+        bot_id: cozeConfig.analyzeBotId,
+        user_id: cozeConfig.defaultUserId,
+        conversation_id: cozeConfig.analyzeConversationId,
+        additional_messages: [{ role: 'user', content: prompt, content_type: 'text' }],
+        stream: false,
+        auto_save_history: true,
+      });
+
+      const { id: chatId, conversation_id: conversationId } = chatRes.data.data;
+
+      // 2. Poll until completed
+      let status = chatRes.data.data.status;
+      while (status === 'in_progress' || status === 'created') {
+        await new Promise(r => setTimeout(r, 1000));
+        const pollRes = await this.client.get('/v3/chat/retrieve', {
+          params: { conversation_id: conversationId, chat_id: chatId },
+        });
+        status = pollRes.data.data.status;
+
+        if (status === 'failed') {
+          return { success: false, error: pollRes.data.data.last_error };
+        }
+      }
+
+      // 3. Get messages
+      const msgRes = await this.client.get('/v3/chat/message/list', {
+        params: { conversation_id: conversationId, chat_id: chatId },
+      });
+
+      const answer = msgRes.data.data?.find(m => m.type === 'answer' && m.role === 'assistant');
+      if (!answer) {
+        return { success: false, error: 'No answer from AI' };
+      }
+
+      // 4. Parse JSON response
+      const parsed = QuizNormalizer.safeParseJSON(answer.content);
+      if (!parsed) {
+        return {
+          success: false,
+          error: 'Failed to parse JSON response',
+          rawContent: answer.content
+        };
+      }
+
+      return {
+        success: true,
+        data: parsed,
+        chatId,
+        conversationId,
+      };
+    } catch (error) {
+      console.error('Coze API Error (analyzeQuiz):', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.msg || error.message,
+      };
+    }
+  }
 }
 
 module.exports = new CozeService();
