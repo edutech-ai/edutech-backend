@@ -10,6 +10,9 @@ module.exports = {
   analyzeBotId: process.env.COZE_BOT_ANALYZE_ID,
   analyzeConversationId: process.env.COZE_CONVERSATION_ANALYZE_ID,
 
+  // Bot for prompt validation
+  promptBotId: process.env.COZE_BOT_VALIDATION_ID,
+
   defaultUserId: process.env.COZE_DEFAULT_USER_ID || 'edutech_system',
   timeout: parseInt(process.env.COZE_TIMEOUT) || 60000,
   maxRetries: parseInt(process.env.COZE_MAX_RETRIES) || 3,

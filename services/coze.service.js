@@ -82,6 +82,10 @@ Trả về dưới dạng JSON với cấu trúc:
         auto_save_history: true,
       });
 
+      if (chatRes.data.code !== 0 || !chatRes.data.data) {
+        throw new Error(chatRes.data.msg || 'AI Initialization failed');
+      }
+
       const { id: chatId, conversation_id: conversationId } = chatRes.data.data;
 
       // 2. Poll until completed
@@ -91,10 +95,15 @@ Trả về dưới dạng JSON với cấu trúc:
         const pollRes = await this.client.get('/v3/chat/retrieve', {
           params: { conversation_id: conversationId, chat_id: chatId },
         });
+
+        if (pollRes.data.code !== 0 || !pollRes.data.data) {
+          throw new Error(pollRes.data.msg || 'AI Polling failed');
+        }
+
         status = pollRes.data.data.status;
 
         if (status === 'failed') {
-          return { success: false, error: pollRes.data.data.last_error };
+          return { success: false, error: pollRes.data.data.last_error?.msg || 'AI Generation failed' };
         }
       }
 
@@ -151,6 +160,89 @@ Trả về dưới dạng JSON với cấu trúc:
   }
 
   /**
+   * Validate user prompt before generation
+   * @param {string} prompt - User's input prompt
+   * @returns {Object} Validation result
+   */
+  async validatePrompt(prompt) {
+    if (!cozeConfig.promptBotId) {
+      console.warn('Skipping prompt validation: COZE_BOT_VALIDATION_ID not set');
+      return { success: true, skipped: true, data: { is_test_description: true } };
+    }
+
+    try {
+      // 1. Create chat with VALIDATION bot
+      const chatRes = await this.client.post('/v3/chat', {
+        bot_id: cozeConfig.promptBotId,
+        user_id: cozeConfig.defaultUserId,
+        additional_messages: [{ role: 'user', content: prompt, content_type: 'text' }],
+        stream: false,
+        auto_save_history: true,
+      });
+
+      if (chatRes.data.code !== 0 || !chatRes.data.data) {
+        console.error('Coze API Unexpected Response:', JSON.stringify(chatRes.data));
+        throw new Error(chatRes.data.msg || 'Failed to initialize chat');
+      }
+
+      const { id: chatId, conversation_id: conversationId } = chatRes.data.data;
+
+      // 2. Poll until completed
+      let status = chatRes.data.data.status;
+      while (status === 'in_progress' || status === 'created') {
+        await new Promise(r => setTimeout(r, 1000));
+        const pollRes = await this.client.get('/v3/chat/retrieve', {
+          params: { conversation_id: conversationId, chat_id: chatId },
+        });
+
+        if (pollRes.data.code !== 0 || !pollRes.data.data) {
+          throw new Error(pollRes.data.msg || 'Validation Polling failed');
+        }
+
+        status = pollRes.data.data.status;
+
+        if (status === 'failed') {
+          return { success: false, error: pollRes.data.data.last_error?.msg || 'Validation failed' };
+        }
+      }
+
+      // 3. Get messages
+      const msgRes = await this.client.get('/v3/chat/message/list', {
+        params: { conversation_id: conversationId, chat_id: chatId },
+      });
+
+      const answer = msgRes.data.data?.find(m => m.type === 'answer' && m.role === 'assistant');
+      if (!answer) {
+        return { success: false, error: 'No answer from Validation AI' };
+      }
+
+      // 4. Parse JSON
+      const parsed = QuizNormalizer.safeParseJSON(answer.content);
+      if (!parsed) {
+        return {
+          success: false,
+          error: 'Invalid JSON from Validation AI',
+          rawContent: answer.content
+        };
+      }
+
+      return {
+        success: true,
+        data: parsed,
+        chatId,
+        conversationId,
+      };
+
+    } catch (error) {
+      console.error('Coze API Error (validatePrompt):', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data?.msg || error.message,
+      };
+    }
+  }
+
+  /**
    * Analyze quiz quality and provide feedback
    * @param {Object} quizData - Quiz data with questions
    * @returns {Object} Analysis result from AI
@@ -170,6 +262,10 @@ Trả về dưới dạng JSON với cấu trúc:
         auto_save_history: true,
       });
 
+      if (chatRes.data.code !== 0 || !chatRes.data.data) {
+        throw new Error(chatRes.data.msg || 'Analysis Initialization failed');
+      }
+
       const { id: chatId, conversation_id: conversationId } = chatRes.data.data;
 
       // 2. Poll until completed
@@ -179,10 +275,15 @@ Trả về dưới dạng JSON với cấu trúc:
         const pollRes = await this.client.get('/v3/chat/retrieve', {
           params: { conversation_id: conversationId, chat_id: chatId },
         });
+
+        if (pollRes.data.code !== 0 || !pollRes.data.data) {
+          throw new Error(pollRes.data.msg || 'Analysis Polling failed');
+        }
+
         status = pollRes.data.data.status;
 
         if (status === 'failed') {
-          return { success: false, error: pollRes.data.data.last_error };
+          return { success: false, error: pollRes.data.data.last_error?.msg || 'Analysis failed' };
         }
       }
 
