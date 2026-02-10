@@ -66,12 +66,12 @@ app.get("/", (req, res) => {
 app.get("/health", async (req, res) => {
   try {
     await db.query("SELECT 1");
-    
+
     // Check timezone
     const [tzResult] = await db.query("SELECT @@session.time_zone as tz, NOW() as db_time");
     const timezone = tzResult[0].tz;
     const dbTime = tzResult[0].db_time;
-    
+
     res.json({
       status: "healthy",
       database: "connected",
@@ -94,6 +94,7 @@ app.use("/api/v1/auth", require("./routes/auth.route"));
 app.use("/api/v1/profile", require("./routes/profile.route"));
 app.use("/api/v1/settings", require("./routes/settings.route"));
 app.use("/api/v1/quizzes", require("./routes/quiz.route"));
+app.use("/api/v1/exam-matrices", require("./routes/examMatrix.route"));
 app.use("/api/v1/questions", require("./routes/question.route"));
 app.use("/api/v1/classrooms", require("./routes/classroom.route"));
 app.use("/api/v1/students", require("./routes/student.route"));
