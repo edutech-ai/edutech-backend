@@ -4,6 +4,7 @@ const OTP = require('../models/OTP');
 const RefreshToken = require('../models/RefreshToken');
 const { sendOTPEmail } = require('../config/email');
 const { validationResult } = require('express-validator');
+const NotificationHelper = require('../utils/notificationHelper');
 
 class AuthController {
   static async register(req, res) {
@@ -80,7 +81,7 @@ class AuthController {
       // Lấy thông tin registration từ Redis
       const redisClient = require('../config/redis');
       const pendingData = await redisClient.get(`pending_register:${email}`);
-      
+
       if (!pendingData) {
         return res.status(400).json({
           success: false,
@@ -91,9 +92,9 @@ class AuthController {
       const { password, role, subject } = JSON.parse(pendingData);
 
       // Tạo user
-      const userId = await User.create({ 
-        email, 
-        password, 
+      const userId = await User.create({
+        email,
+        password,
         role,
         subject: (role === 'TEACHER' && subject) ? subject : null
       });
@@ -103,13 +104,18 @@ class AuthController {
 
       // Generate JWT token
       const { generateAccessToken, generateRefreshToken } = require('../utils/tokenHelper');
-      
+
       // Generate access token và refresh token
       const accessToken = generateAccessToken(userId);
       const refreshToken = generateRefreshToken(userId);
-      
+
       // Lưu refresh token vào database
       await RefreshToken.create(userId, refreshToken);
+
+      // Tạo thông báo chào mừng
+      NotificationHelper.notifyAccountCreated(userId).catch(err =>
+        console.error('Create notification error:', err)
+      );
 
       res.status(201).json({
         success: true,
@@ -167,13 +173,22 @@ class AuthController {
       }
 
       const { generateAccessToken, generateRefreshToken } = require('../utils/tokenHelper');
-      
+
       // Generate access token và refresh token
       const accessToken = generateAccessToken(user.id);
       const refreshToken = generateRefreshToken(user.id);
-      
+
       // Lưu refresh token vào database
       await RefreshToken.create(user.id, refreshToken);
+
+      // Tạo thông báo đăng nhập
+      NotificationHelper.notifyLogin(user.id)
+        .then(notificationId => {
+          console.log('✅ Login notification created successfully:', notificationId);
+        })
+        .catch(err => {
+          console.error('❌ Create notification error:', err);
+        });
 
       delete user.password_hash;
 
@@ -254,6 +269,11 @@ class AuthController {
 
       await User.changePassword(req.user.id, newPassword);
 
+      // Tạo thông báo đổi mật khẩu
+      NotificationHelper.notifyPasswordChanged(req.user.id).catch(err =>
+        console.error('Create notification error:', err)
+      );
+
       res.json({
         success: true,
         message: 'Password changed successfully'
@@ -302,7 +322,12 @@ class AuthController {
       // Gửi email
       try {
         await sendOTPEmail(email, otpCode, user.email);
-        
+
+        // Tạo thông báo gửi email reset password
+        NotificationHelper.notifyPasswordResetEmail(user.id).catch(err =>
+          console.error('Create notification error:', err)
+        );
+
         res.json({
           success: true,
           message: 'Mã OTP đã được gửi đến email của bạn',
@@ -359,7 +384,7 @@ class AuthController {
       await User.changePassword(verifyResult.userId, newPassword);
 
       // Gửi email thông báo (optional, không chặn request)
-      sendPasswordChangedEmail(email).catch(err => 
+      sendPasswordChangedEmail(email).catch(err =>
         console.error('Send notification email error:', err)
       );
 
@@ -444,11 +469,11 @@ class AuthController {
       }
 
       const { generateAccessToken, generateRefreshToken } = require('../utils/tokenHelper');
-      
+
       // Generate access token và refresh token
       const accessToken = generateAccessToken(req.user.id);
       const refreshToken = generateRefreshToken(req.user.id);
-      
+
       // Lưu refresh token vào database
       await RefreshToken.create(req.user.id, refreshToken);
 

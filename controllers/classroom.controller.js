@@ -4,6 +4,7 @@ const Student = require('../models/Student');
 const ClassroomStudent = require('../models/ClassroomStudent');
 const StudentPerformance = require('../models/StudentPerformance');
 const xlsx = require('xlsx');
+const NotificationHelper = require('../utils/notificationHelper');
 
 // ============================================================
 // CLASSROOM CRUD
@@ -18,9 +19,9 @@ exports.createClassroom = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -37,6 +38,11 @@ exports.createClassroom = async (req, res) => {
     });
 
     const classroom = await Classroom.findById(classroomId);
+
+    // Tạo thông báo tạo lớp thành công
+    NotificationHelper.notifyClassroomCreated(teacher_id, name, classroomId).catch(err =>
+      console.error('Create notification error:', err)
+    );
 
     res.status(201).json({
       success: true,
@@ -62,9 +68,9 @@ exports.getClassrooms = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -112,9 +118,9 @@ exports.getClassroomById = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -159,9 +165,9 @@ exports.updateClassroom = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -205,9 +211,9 @@ exports.deleteClassroom = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -255,9 +261,9 @@ exports.createStudent = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -347,9 +353,9 @@ exports.getStudentById = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -386,9 +392,9 @@ exports.updateStudent = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -442,9 +448,9 @@ exports.deleteStudent = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -490,9 +496,9 @@ exports.addStudentToClassroom = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -534,6 +540,11 @@ exports.addStudentToClassroom = async (req, res) => {
       status
     });
 
+    // Tạo thông báo thêm học sinh vào lớp
+    NotificationHelper.notifyStudentAdded(teacher_id, classroom.name, classroomId).catch(err =>
+      console.error('Create notification error:', err)
+    );
+
     res.status(201).json({
       success: true,
       message: 'Thêm học sinh vào lớp thành công'
@@ -557,9 +568,9 @@ exports.createStudentAndAddToClassroom = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -604,6 +615,11 @@ exports.createStudentAndAddToClassroom = async (req, res) => {
 
     const student = await Student.findById(studentId);
 
+    // Tạo thông báo thêm học sinh vào lớp
+    NotificationHelper.notifyStudentAdded(teacher_id, classroom.name, classroomId).catch(err =>
+      console.error('Create notification error:', err)
+    );
+
     res.status(201).json({
       success: true,
       message: 'Tạo học sinh và thêm vào lớp thành công',
@@ -628,9 +644,9 @@ exports.getClassroomStudents = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -673,9 +689,9 @@ exports.removeStudentFromClassroom = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -727,9 +743,9 @@ exports.updateStudentStatus = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -784,9 +800,9 @@ exports.getStudentPerformance = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -835,9 +851,9 @@ exports.updateStudentPerformance = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -948,7 +964,7 @@ exports.uploadStudentsXLSX = async (req, res) => {
     const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    
+
     // Chuyển đổi dữ liệu từ worksheet sang JSON
     const data = xlsx.utils.sheet_to_json(worksheet);
 
@@ -1055,9 +1071,9 @@ exports.uploadStudentsToClassroom = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        success: false, 
-        errors: errors.array() 
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
       });
     }
 
@@ -1092,7 +1108,7 @@ exports.uploadStudentsToClassroom = async (req, res) => {
     const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    
+
     // Chuyển đổi dữ liệu từ worksheet sang JSON
     const data = xlsx.utils.sheet_to_json(worksheet);
 
@@ -1141,7 +1157,7 @@ exports.uploadStudentsToClassroom = async (req, res) => {
         const existingStudent = await Student.findByStudentCode(student_code);
         if (existingStudent) {
           studentId = existingStudent.id;
-          
+
           // Kiểm tra học sinh đã có trong lớp chưa
           const inClassroom = await ClassroomStudent.exists(classroomId, studentId);
           if (inClassroom) {

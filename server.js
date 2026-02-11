@@ -95,6 +95,7 @@ app.use("/api/v1/profile", require("./routes/profile.route"));
 app.use("/api/v1/settings", require("./routes/settings.route"));
 app.use("/api/v1/quizzes", require("./routes/quiz.route"));
 app.use("/api/v1/exam-matrices", require("./routes/examMatrix.route"));
+app.use("/api/v1/notifications", require("./routes/notification.route"));
 app.use("/api/v1/questions", require("./routes/question.route"));
 app.use("/api/v1/classrooms", require("./routes/classroom.route"));
 app.use("/api/v1/students", require("./routes/student.route"));

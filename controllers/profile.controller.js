@@ -1,6 +1,7 @@
 const UserProfile = require('../models/UserProfile');
 const User = require('../models/User');
 const { validationResult } = require('express-validator');
+const NotificationHelper = require('../utils/notificationHelper');
 
 class ProfileController {
   static async getMyProfile(req, res) {
@@ -124,6 +125,11 @@ class ProfileController {
       }
 
       const updatedProfile = await UserProfile.update(userId, profileData);
+
+      // Tạo thông báo cập nhật profile
+      NotificationHelper.notifyProfileUpdated(userId).catch(err =>
+        console.error('Create notification error:', err)
+      );
 
       res.json({
         success: true,

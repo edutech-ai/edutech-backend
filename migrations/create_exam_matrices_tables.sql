@@ -1,8 +1,3 @@
--- =============================================
--- MA TRẬN ĐỀ THI (EXAM MATRICES)
--- =============================================
-
--- exam_matrices
 CREATE TABLE IF NOT EXISTS exam_matrices (
     id VARCHAR(36) PRIMARY KEY,
     teacher_id VARCHAR(36) NOT NULL,
