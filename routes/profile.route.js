@@ -67,6 +67,105 @@ router.get('/', authenticate, ProfileController.getMyProfile);
 
 /**
  * @swagger
+ * /api/v1/profile/stats:
+ *   get:
+ *     summary: Lấy thống kê của giáo viên (Teacher only)
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lấy thống kê thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     total_quizzes:
+ *                       type: integer
+ *                       example: 24
+ *                       description: Tổng số đề thi
+ *                     total_matrices:
+ *                       type: integer
+ *                       example: 18
+ *                       description: Tổng số ma trận đề thi
+ *                     total_students:
+ *                       type: integer
+ *                       example: 120
+ *                       description: Tổng số học sinh
+ *                     total_classrooms:
+ *                       type: integer
+ *                       example: 2
+ *                       description: Tổng số lớp học
+ *       401:
+ *         description: Chưa đăng nhập
+ *       403:
+ *         description: Không có quyền truy cập (chỉ dành cho giáo viên)
+ */
+router.get('/stats', authenticate, ProfileController.getTeacherStats);
+
+/**
+ * @swagger
+ * /api/v1/profile/recent-activities:
+ *   get:
+ *     summary: Lấy hoạt động gần đây của giáo viên (Teacher only)
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lấy hoạt động gần đây thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       type:
+ *                         type: string
+ *                         enum: [quiz_created, matrix_created, grading_completed]
+ *                         example: quiz_created
+ *                       title:
+ *                         type: string
+ *                         example: Tạo đề kiểm tra mới
+ *                       description:
+ *                         type: string
+ *                         example: Đề kiểm tra 15 phút - Phương trình bậc nhất
+ *                       timestamp:
+ *                         type: string
+ *                         format: date-time
+ *                         example: 2025-01-15T17:30:00.000Z
+ *                       metadata:
+ *                         type: object
+ *                         properties:
+ *                           quiz_id:
+ *                             type: string
+ *                           matrix_id:
+ *                             type: string
+ *                           student_count:
+ *                             type: integer
+ *       401:
+ *         description: Chưa đăng nhập
+ *       403:
+ *         description: Không có quyền truy cập (chỉ dành cho giáo viên)
+ */
+router.get('/recent-activities', authenticate, ProfileController.getRecentActivities);
+
+/**
+ * @swagger
  * /api/v1/profile:
  *   post:
  *     summary: Tạo profile mới (nếu chưa có)

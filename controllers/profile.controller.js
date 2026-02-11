@@ -6,7 +6,7 @@ class ProfileController {
   static async getMyProfile(req, res) {
     try {
       const profile = await UserProfile.findFullProfileByUserId(req.user.id);
-      
+
       if (!profile) {
         return res.status(404).json({
           success: false,
@@ -87,7 +87,7 @@ class ProfileController {
 
       const userId = req.user.id;
       const existingProfile = await UserProfile.findByUserId(userId);
-      
+
       // Helper: Convert string to boolean (for form-data)
       const toBoolean = (value) => {
         if (value === undefined || value === null) return undefined;
@@ -115,7 +115,7 @@ class ProfileController {
 
       if (!existingProfile) {
         const newProfile = await UserProfile.create(userId, profileData);
-        
+
         return res.status(201).json({
           success: true,
           message: 'Profile created successfully',
@@ -171,7 +171,7 @@ class ProfileController {
       const { userId } = req.params;
 
       const profile = await UserProfile.findFullProfileByUserId(userId);
-      
+
       if (!profile) {
         return res.status(404).json({
           success: false,
@@ -191,6 +191,168 @@ class ProfileController {
       res.status(500).json({
         success: false,
         message: 'Failed to get profile',
+        error: error.message
+      });
+    }
+  }
+
+  // Lấy thống kê của giáo viên
+  static async getTeacherStats(req, res) {
+    try {
+      const teacherId = req.user.id;
+
+      if (req.user.role !== 'TEACHER') {
+        return res.status(403).json({
+          success: false,
+          message: 'Chỉ giáo viên mới có thể xem thống kê'
+        });
+      }
+
+      const db = require('../config/database');
+
+      const [quizResult] = await db.query(
+        'SELECT COUNT(*) as count FROM quizzes WHERE teacher_id = ? AND is_deleted = FALSE',
+        [teacherId]
+      );
+      const totalQuizzes = quizResult[0].count;
+
+      const [matrixResult] = await db.query(
+        'SELECT COUNT(*) as count FROM exam_matrices WHERE teacher_id = ? AND is_deleted = FALSE',
+        [teacherId]
+      );
+      const totalMatrices = matrixResult[0].count;
+
+      const [studentResult] = await db.query(
+        'SELECT COUNT(DISTINCT cs.student_id) as count FROM classroom_students cs ' +
+        'INNER JOIN classrooms c ON cs.classroom_id = c.id ' +
+        'WHERE c.teacher_id = ?',
+        [teacherId]
+      );
+      const totalStudents = studentResult[0].count;
+
+      const [classroomResult] = await db.query(
+        'SELECT COUNT(*) as count FROM classrooms WHERE teacher_id = ?',
+        [teacherId]
+      );
+      const totalClassrooms = classroomResult[0].count;
+
+      res.json({
+        success: true,
+        data: {
+          total_quizzes: totalQuizzes,
+          total_matrices: totalMatrices,
+          total_students: totalStudents,
+          total_classrooms: totalClassrooms
+        }
+      });
+    } catch (error) {
+      console.error('Get teacher stats error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Không thể lấy thống kê',
+        error: error.message
+      });
+    }
+  }
+
+  // Lấy hoạt động gần đây của giáo viên
+  static async getRecentActivities(req, res) {
+    try {
+      const teacherId = req.user.id;
+
+      if (req.user.role !== 'TEACHER') {
+        return res.status(403).json({
+          success: false,
+          message: 'Chỉ giáo viên mới có thể xem hoạt động'
+        });
+      }
+
+      const db = require('../config/database');
+      const activities = [];
+
+      // 1. Lấy các quiz mới tạo
+      const [quizzes] = await db.query(
+        `SELECT id, title, created_at, 'quiz_created' as activity_type 
+         FROM quizzes 
+         WHERE teacher_id = ? AND is_deleted = FALSE 
+         ORDER BY created_at DESC 
+         LIMIT 10`,
+        [teacherId]
+      );
+
+      quizzes.forEach(q => {
+        activities.push({
+          type: 'quiz_created',
+          title: 'Tạo đề kiểm tra mới',
+          description: q.title,
+          timestamp: q.created_at,
+          metadata: { quiz_id: q.id }
+        });
+      });
+
+      // 2. Lấy các ma trận mới tạo
+      const [matrices] = await db.query(
+        `SELECT id, name, created_at, 'matrix_created' as activity_type 
+         FROM exam_matrices 
+         WHERE teacher_id = ? AND is_deleted = FALSE 
+         ORDER BY created_at DESC 
+         LIMIT 10`,
+        [teacherId]
+      );
+
+      matrices.forEach(m => {
+        activities.push({
+          type: 'matrix_created',
+          title: 'Tạo ma trận đề thi mới',
+          description: m.name,
+          timestamp: m.created_at,
+          metadata: { matrix_id: m.id }
+        });
+      });
+
+      // 3. Lấy các bài kiểm tra đã chấm gần đây
+      const [scores] = await db.query(
+        `SELECT ss.quiz_id,
+                MAX(ss.exam_name) as exam_name,
+                MAX(ss.created_at) as created_at,
+                COUNT(DISTINCT ss.student_id) as student_count,
+                MAX(q.title) as quiz_title
+         FROM student_scores ss
+         LEFT JOIN quizzes q ON ss.quiz_id = q.id
+         LEFT JOIN classrooms c ON ss.classroom_id = c.id
+         WHERE c.teacher_id = ? 
+         GROUP BY ss.quiz_id
+         ORDER BY MAX(ss.created_at) DESC 
+         LIMIT 10`,
+        [teacherId]
+      );
+
+      scores.forEach(s => {
+        activities.push({
+          type: 'grading_completed',
+          title: 'Hoàn thành chấm bài',
+          description: `Đã chấm xong ${s.student_count} bài thi${s.quiz_title ? ': ' + s.quiz_title : ''}`,
+          timestamp: s.created_at,
+          metadata: {
+            quiz_id: s.quiz_id,
+            student_count: s.student_count
+          }
+        });
+      });
+
+      // Sắp xếp tất cả activities theo thời gian giảm dần và lấy 10 cái mới nhất
+      activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      const recentActivities = activities.slice(0, 10);
+
+      res.json({
+        success: true,
+        data: recentActivities
+      });
+    } catch (error) {
+      console.error('Get recent activities error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Không thể lấy hoạt động gần đây',
         error: error.message
       });
     }
