@@ -168,10 +168,19 @@ const quizQueryValidation = [
     .isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100')
 ];
 
+const updateVisibilityValidator = [
+  body('visibility')
+    .notEmpty()
+    .withMessage('Visibility is required')
+    .isIn(['private', 'community'])
+    .withMessage('Visibility must be either "private" or "community"')
+];
+
 module.exports = {
   createQuizValidation,
   updateQuizValidation,
   quizIdValidation,
   examCodeValidation,
-  quizQueryValidation
+  quizQueryValidation,
+  updateVisibilityValidator
 };

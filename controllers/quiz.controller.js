@@ -197,18 +197,36 @@ class QuizController {
         });
       }
 
-      // Kiểm tra quyền truy cập
-      // Nếu là quiz private và không phải owner
-      if (quiz.status !== 'public' && quiz.teacher_id !== req.user.id) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied'
+      // Kiểm tra quyền truy cập theo visibility
+
+      // 1. Community visibility -> Allow everyone (kể cả chưa login)
+      if (quiz.visibility === 'community') {
+        return res.json({
+          success: true,
+          data: quiz
         });
       }
 
-      res.json({
-        success: true,
-        data: quiz
+      // 2. Private visibility -> Require login
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+
+      // 3. Authenticated user -> Check Owner or Public Status
+      if (quiz.teacher_id === req.user.id || quiz.status === 'public') {
+        return res.json({
+          success: true,
+          data: quiz
+        });
+      }
+
+      // 4. Default -> Access Denied
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
       });
     } catch (error) {
       console.error('Get quiz by ID error:', error);
@@ -443,6 +461,59 @@ class QuizController {
       res.status(500).json({
         success: false,
         message: 'Failed to fetch quiz statistics',
+        error: error.message
+      });
+    }
+  }
+
+  // Cập nhật visibility của quiz
+  static async updateQuizVisibility(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation failed',
+          errors: errors.array()
+        });
+      }
+
+      const { id } = req.params;
+      const { visibility } = req.body;
+      const teacherId = req.user.id;
+
+      // Kiểm tra quiz có tồn tại không
+      const quiz = await Quiz.findById(id);
+      if (!quiz) {
+        return res.status(404).json({
+          success: false,
+          message: 'Quiz not found'
+        });
+      }
+
+      // Kiểm tra quyền sở hữu
+      if (quiz.teacher_id !== teacherId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to update this quiz'
+        });
+      }
+
+      // Cập nhật visibility
+      await Quiz.update(id, { visibility });
+
+      const updatedQuiz = await Quiz.findById(id);
+
+      res.json({
+        success: true,
+        message: 'Quiz visibility updated successfully',
+        data: updatedQuiz
+      });
+    } catch (error) {
+      console.error('Update quiz visibility error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update quiz visibility',
         error: error.message
       });
     }

@@ -58,6 +58,29 @@ const authenticate = async (req, res, next) => {
   }
 };
 
+// Middleware xác thực JWT token (optional)
+const authenticateOptional = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+
+    if (!token) {
+      return next();
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.userId);
+
+    if (user && user.status === 'active') {
+      req.user = user;
+    }
+
+    next();
+  } catch (error) {
+    // Nếu token lỗi, vẫn cho qua nhưng không có user
+    next();
+  }
+};
+
 // Middleware kiểm tra role
 const authorize = (...allowedRoles) => {
   return (req, res, next) => {
@@ -98,4 +121,4 @@ const authorizeAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { authenticate, authorize, authorizeAdmin };
+module.exports = { authenticate, authenticateOptional, authorize, authorizeAdmin };

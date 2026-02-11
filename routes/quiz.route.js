@@ -1,12 +1,13 @@
 const express = require('express');
 const QuizController = require('../controllers/quiz.controller');
-const { authenticate } = require('../middlewares/auth');
+const { authenticate, authenticateOptional } = require('../middlewares/auth');
 const {
   createQuizValidation,
   updateQuizValidation,
   quizIdValidation,
   examCodeValidation,
-  quizQueryValidation
+  quizQueryValidation,
+  updateVisibilityValidator
 } = require('../middlewares/quiz.validator');
 
 const router = express.Router();
@@ -115,10 +116,10 @@ router.get('/my-quizzes', authenticate, quizQueryValidation, QuizController.getM
  * @swagger
  * /api/v1/quizzes/public:
  *   get:
- *     summary: Lấy danh sách quiz công khai (All users)
+ *     summary: Lấy danh sách quiz công khai ra cộng đồng
  *     tags: [Quizzes]
  *     security:
- *       - bearerAuth: []
+ *       - bearerAuth: [] 
  *     parameters:
  *       - in: query
  *         name: difficulty
@@ -143,7 +144,7 @@ router.get('/my-quizzes', authenticate, quizQueryValidation, QuizController.getM
  *       200:
  *         description: List of public quizzes
  */
-router.get('/public', authenticate, quizQueryValidation, QuizController.getPublicQuizzes);
+router.get('/public', authenticateOptional, quizQueryValidation, QuizController.getPublicQuizzes);
 
 /**
  * @swagger
@@ -189,7 +190,7 @@ router.get('/exam-code/:examCode', authenticate, examCodeValidation, QuizControl
  *       404:
  *         description: Quiz not found
  */
-router.get('/:id', authenticate, quizIdValidation, QuizController.getQuizById);
+router.get('/:id', authenticateOptional, quizIdValidation, QuizController.getQuizById);
 
 /**
  * @swagger
@@ -317,5 +318,60 @@ router.get('/:id/questions', authenticate, quizIdValidation, QuizController.getQ
  *         description: Quiz not found
  */
 router.get('/:id/stats', authenticate, quizIdValidation, QuizController.getQuizStats);
+
+/**
+ * @swagger
+ * /api/v1/quizzes/{id}/visibility:
+ *   patch:
+ *     summary: Cập nhật visibility của quiz (Teacher only)
+ *     tags: [Quizzes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Quiz ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - visibility
+ *             properties:
+ *               visibility:
+ *                 type: string
+ *                 enum: [private, community]
+ *                 description: Phạm vi hiển thị - private (chỉ mình tôi) hoặc community (chia sẻ cộng đồng)
+ *                 example: community
+ *     responses:
+ *       200:
+ *         description: Quiz visibility updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Quiz visibility updated successfully
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Quiz not found
+ */
+router.patch('/:id/visibility', authenticate, quizIdValidation, updateVisibilityValidator, QuizController.updateQuizVisibility);
 
 module.exports = router;

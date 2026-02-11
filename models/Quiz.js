@@ -13,6 +13,7 @@ class Quiz {
     exam_code,
     qr_code,
     status = 'draft',
+    visibility = 'private',
     subject,
     grade,
     duration,
@@ -54,9 +55,9 @@ class Quiz {
     }
 
     await db.query(
-      `INSERT INTO quizzes (id, teacher_id, title, description, difficulty, exam_code, qr_code, status, subject, grade, duration, min_attempts, max_attempts) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [quizId, teacher_id, title, description, difficulty, exam_code, qr_code, status, subject, grade, duration, min_attempts, max_attempts]
+      `INSERT INTO quizzes (id, teacher_id, title, description, difficulty, exam_code, qr_code, status, visibility, subject, grade, duration, min_attempts, max_attempts) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [quizId, teacher_id, title, description, difficulty, exam_code, qr_code, status, visibility, subject, grade, duration, min_attempts, max_attempts]
     );
 
     return quizId;
@@ -118,12 +119,13 @@ class Quiz {
     return rows;
   }
 
-  // Lấy tất cả quiz công khai (cho học sinh)
+  // Lấy tất cả quiz cộng đồng (cho mọi người)
   static async findPublicQuizzes(filters = {}) {
-    let query = `SELECT q.*, u.email as teacher_email 
-                 FROM quizzes q 
-                 JOIN users u ON q.teacher_id = u.id 
-                 WHERE q.status = 'public' AND q.is_deleted = FALSE`;
+    let query = `SELECT q.*, u.email as teacher_email, p.name as teacher_name
+                 FROM quizzes q
+                 JOIN users u ON q.teacher_id = u.id
+                 LEFT JOIN user_profiles p ON u.id = p.user_id
+                 WHERE q.visibility = 'community' AND q.is_deleted = FALSE`;
     const params = [];
 
     // Filter by difficulty
@@ -199,6 +201,10 @@ class Quiz {
     if (data.status !== undefined) {
       fields.push('status = ?');
       values.push(data.status);
+    }
+    if (data.visibility !== undefined) {
+      fields.push('visibility = ?');
+      values.push(data.visibility);
     }
     if (data.subject !== undefined) {
       fields.push('subject = ?');
