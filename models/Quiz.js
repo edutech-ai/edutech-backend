@@ -261,6 +261,22 @@ class Quiz {
     return rows[0].total;
   }
 
+  // Nếu là lần đầu xem → tăng view_count, nếu đã xem rồi → bỏ qua
+  static async recordView(quizId, userId) {
+    const [result] = await db.query(
+      `INSERT IGNORE INTO quiz_views (quiz_id, user_id) VALUES (?, ?)`,
+      [quizId, userId]
+    );
+
+    // affectedRows = 1 nghĩa là lần đầu xem → tăng counter
+    if (result.affectedRows === 1) {
+      await db.query(
+        `UPDATE quizzes SET view_count = view_count + 1 WHERE id = ?`,
+        [quizId]
+      );
+    }
+  }
+
   // Tính tổng điểm của quiz
   static async getTotalPoints(quizId) {
     const [rows] = await db.query(

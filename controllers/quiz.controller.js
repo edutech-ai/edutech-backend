@@ -197,6 +197,12 @@ class QuizController {
         });
       }
 
+      // Track unique view: chỉ đếm logged-in user và không phải owner
+      const viewerId = req.user?.id;
+      if (viewerId && viewerId !== quiz.teacher_id) {
+        Quiz.recordView(id, viewerId).catch(() => {});
+      }
+
       // Kiểm tra quyền truy cập theo visibility
 
       // 1. Community visibility -> Allow everyone (kể cả chưa login)
@@ -384,10 +390,17 @@ class QuizController {
       }
 
       // Kiểm tra quyền truy cập
-      const isOwner = quiz.teacher_id === req.user.id;
+      const isOwner = req.user && quiz.teacher_id === req.user.id;
+      const isCommunity = quiz.visibility === 'community';
       const isPublic = quiz.status === 'public';
 
-      if (!isOwner && !isPublic) {
+      if (!isOwner && !isCommunity && !isPublic) {
+        if (!req.user) {
+          return res.status(401).json({
+            success: false,
+            message: 'Authentication required'
+          });
+        }
         return res.status(403).json({
           success: false,
           message: 'Access denied'

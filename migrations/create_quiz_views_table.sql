@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS quiz_views (
+    quiz_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (quiz_id, user_id),
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

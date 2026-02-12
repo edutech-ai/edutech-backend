@@ -292,7 +292,7 @@ router.delete('/:id', authenticate, quizIdValidation, QuizController.deleteQuiz)
  *       404:
  *         description: Quiz not found
  */
-router.get('/:id/questions', authenticate, quizIdValidation, QuizController.getQuizQuestions);
+router.get('/:id/questions', authenticateOptional, quizIdValidation, QuizController.getQuizQuestions);
 
 /**
  * @swagger
