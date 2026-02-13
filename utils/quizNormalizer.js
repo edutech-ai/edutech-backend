@@ -1,6 +1,5 @@
 // Coze type -> Backend enum mapping
 const QUESTION_TYPE_MAP = {
-  // Coze outputs
   'single_choice': 'MCQ',
   'multiple_choice': 'MULTIPLE_ANSWER',
   'true_false': 'TRUE_FALSE',
@@ -13,18 +12,15 @@ const QUESTION_TYPE_MAP = {
 
 // Coze bloom levels -> Backend difficulty mapping
 const BLOOM_LEVEL_MAP = {
-  // Coze outputs
   'recognition': 'KNOWLEDGE',
   'understanding': 'COMPREHENSION',
   'application': 'APPLICATION',
   'high_application': 'ANALYSIS',
-  // Alternative names
   'knowledge': 'KNOWLEDGE',
   'comprehension': 'COMPREHENSION',
   'analysis': 'ANALYSIS',
   'synthesis': 'SYNTHESIS',
   'evaluation': 'EVALUATION',
-  // Already correct (passthrough)
   'KNOWLEDGE': 'KNOWLEDGE',
   'COMPREHENSION': 'COMPREHENSION',
   'APPLICATION': 'APPLICATION',
@@ -33,158 +29,147 @@ const BLOOM_LEVEL_MAP = {
   'EVALUATION': 'EVALUATION',
 };
 
-// Valid backend enums
 const VALID_TYPES = ['MCQ', 'MULTIPLE_ANSWER', 'TRUE_FALSE', 'ESSAY', 'FILL_BLANK'];
 const VALID_DIFFICULTIES = ['KNOWLEDGE', 'COMPREHENSION', 'APPLICATION', 'ANALYSIS', 'SYNTHESIS', 'EVALUATION'];
 
-// LaTeX patterns for detection and conversion
-const LATEX_PATTERNS = [
-  /\$\$(.+?)\$\$/g,           // $$...$$ block
-  /\$(.+?)\$/g,               // $...$ inline
-  /\\begin\{.*?\}/,           // \begin{...}
-  /\\frac\{/,                 // \frac{
-  /\\sqrt\{/,                 // \sqrt{
-  /\\[a-zA-Z]+/,              // \alpha, \beta, etc.
-  /\^{.*?}/,                  // ^{...} superscript
-  /_{.*?}/,                   // _{...} subscript
-];
-
 class QuizNormalizer {
   /**
-   * Check if text contains LaTeX
-   * @param {string} text - Text to check
-   * @returns {boolean}
+   * Convert Quill HTML / any HTML to plain text + $...$ LaTeX
+   *
+   * Handles:
+   * - Quill formula: <span class="ql-formula" data-value="x^2">...</span> → $x^2$
+   * - Generic <span> with LaTeX: <span>\alpha + \beta</span> → $\alpha + \beta$
+   * - All other HTML tags stripped, text preserved
+   * - HTML entities decoded
+   *
+   * @param {string} html - HTML string (from Quill editor or AI output)
+   * @returns {string} Plain text with $...$ LaTeX
    */
-  static containsLatex(text) {
-    if (!text || typeof text !== 'string') return false;
-    return LATEX_PATTERNS.some(pattern => pattern.test(text));
-  }
+  static stripHtml(html) {
+    if (!html || typeof html !== 'string') return '';
 
-  /**
-   * Wrap LaTeX content in proper HTML span
-   * Converts various LaTeX formats to consistent <span>...</span> format
-   * @param {string} text - Text containing LaTeX
-   * @returns {string} HTML formatted text
-   */
-  static wrapLatex(text) {
-    if (!text || typeof text !== 'string') return text;
+    let result = html;
 
-    let result = text;
+    // 1. Quill formula spans → $...$
+    //    <span class="ql-formula" data-value="x^2 + 1">rendered content</span>
+    result = result.replace(
+      /<span[^>]*class="ql-formula"[^>]*data-value="([^"]*)"[^>]*>.*?<\/span>/gi,
+      ' $$$1$$ '
+    );
 
-    // Convert $$...$$ block LaTeX to <span>...</span>
-    result = result.replace(/\$\$(.+?)\$\$/g, '<span>$1</span>');
+    // 2. Generic <span> containing LaTeX (from older normalizer or manual input)
+    //    <span>\frac{1}{2}</span> → $\frac{1}{2}$
+    result = result.replace(
+      /<span[^>]*>((?:[^<])*(?:\\[a-zA-Z]+|[\\^_{}])[^<]*)<\/span>/gi,
+      ' $$$1$$ '
+    );
 
-    // Convert $...$ inline LaTeX to <span>...</span>
-    result = result.replace(/\$(.+?)\$/g, '<span>$1</span>');
+    // 3. <br> and block tags → newline
+    result = result.replace(/<br\s*\/?>/gi, '\n');
+    result = result.replace(/<\/(p|div|li|h[1-6])>/gi, '\n');
 
-    // If still contains raw LaTeX (like \alpha, \frac) without delimiters,
-    // wrap the entire content in span
-    if (QuizNormalizer.containsLatex(result) && !result.includes('<span>')) {
-      result = `<span>${result}</span>`;
-    }
+    // 4. Strip all remaining HTML tags
+    result = result.replace(/<[^>]+>/g, '');
+
+    // 5. Decode HTML entities
+    result = result.replace(/&amp;/g, '&');
+    result = result.replace(/&lt;/g, '<');
+    result = result.replace(/&gt;/g, '>');
+    result = result.replace(/&quot;/g, '"');
+    result = result.replace(/&#39;/g, "'");
+    result = result.replace(/&nbsp;/g, ' ');
+
+    // 6. Clean up: collapse whitespace, trim, remove blank lines
+    result = result.replace(/[ \t]+/g, ' ');
+    result = result.replace(/\n\s*\n/g, '\n');
+    result = result.trim();
 
     return result;
   }
 
   /**
-   * Wrap text content in HTML paragraph tag
-   * Handles LaTeX content appropriately
-   * @param {string} text - Text to wrap
-   * @returns {string} HTML wrapped text
+   * Normalize any text input to plain text + $...$ LaTeX
+   * Works with: Quill HTML, plain text, raw LaTeX, or already-normalized text
+   *
+   * @param {string} text - Input text (any format)
+   * @returns {string} Clean plain text with $...$ LaTeX
    */
-  static wrapInHtml(text) {
-    if (!text || typeof text !== 'string') return '<p></p>';
+  static normalizeText(text) {
+    if (!text || typeof text !== 'string') return '';
 
-    // Already wrapped in HTML
-    if (text.trim().startsWith('<p>') || text.trim().startsWith('<div>')) {
-      return text;
+    const trimmed = text.trim();
+
+    // Contains HTML tags → strip and convert
+    if (/<[^>]+>/.test(trimmed)) {
+      return QuizNormalizer.stripHtml(trimmed);
     }
 
-    // Process LaTeX first
-    let processed = QuizNormalizer.wrapLatex(text.trim());
+    // Plain text with raw LaTeX (no $...$ delimiters)
+    // Only wrap if the ENTIRE string looks like a LaTeX expression
+    // e.g. "\alpha + \beta" → "$\alpha + \beta$"
+    // but "Giải phương trình: 3x - 7 = 2x + 5" → kept as-is
+    if (!/\$[^$]+\$/.test(trimmed) && /^\\[a-zA-Z]/.test(trimmed)) {
+      return `$${trimmed}$`;
+    }
 
-    // Wrap in paragraph
-    return `<p>${processed}</p>`;
+    return trimmed;
   }
 
-  /**
-   * Normalize question type from Coze format to Backend enum
-   * @param {string} cozeType - Type from Coze output
-   * @returns {string} Backend enum type
-   */
   static normalizeType(cozeType) {
-    if (!cozeType) return 'MCQ'; // Default
-
-    const normalized = QUESTION_TYPE_MAP[cozeType.toLowerCase()] ||
-                       QUESTION_TYPE_MAP[cozeType];
-
+    if (!cozeType) return 'MCQ';
+    const normalized = QUESTION_TYPE_MAP[cozeType.toLowerCase()] || QUESTION_TYPE_MAP[cozeType];
     if (!normalized || !VALID_TYPES.includes(normalized)) {
       console.warn(`Unknown question type: ${cozeType}, defaulting to MCQ`);
       return 'MCQ';
     }
-
     return normalized;
   }
 
-  /**
-   * Normalize bloom level/difficulty from Coze format to Backend enum
-   * @param {string} cozeBloom - Bloom level from Coze output
-   * @returns {string} Backend enum difficulty
-   */
   static normalizeDifficulty(cozeBloom) {
-    if (!cozeBloom) return 'COMPREHENSION'; // Default
-
-    const normalized = BLOOM_LEVEL_MAP[cozeBloom.toLowerCase()] ||
-                       BLOOM_LEVEL_MAP[cozeBloom];
-
+    if (!cozeBloom) return 'COMPREHENSION';
+    const normalized = BLOOM_LEVEL_MAP[cozeBloom.toLowerCase()] || BLOOM_LEVEL_MAP[cozeBloom];
     if (!normalized || !VALID_DIFFICULTIES.includes(normalized)) {
       console.warn(`Unknown bloom level: ${cozeBloom}, defaulting to COMPREHENSION`);
       return 'COMPREHENSION';
     }
-
     return normalized;
   }
 
   /**
-   * Normalize options format
-   * Coze return: { "A": "text", "B": "text" } or ["text1", "text2"] or [{key, value}]
-   * Backend expects: ["<p>text1</p>", "<p>text2</p>"] - array of HTML strings
-   * @param {Object|Array} options - Options from Coze
-   * @returns {Object} { options: Array, keyMap: Object } - Normalized options and key mapping
+   * Normalize options from various AI/editor formats
+   * Output: plain string array + keyMap for answer lookup
+   *
+   * Input formats:
+   *   { "A": "text", "B": "text" }
+   *   ["text1", "text2"]
+   *   [{key: "A", value: "text"}, ...]
+   *
+   * Output: ["plain text with $latex$", ...]
    */
   static normalizeOptions(options) {
     if (!options) return { options: null, keyMap: {} };
 
-    const keyMap = {}; // Maps "A", "B", etc. to actual content for answer lookup
-    let normalizedOptions = [];
+    const keyMap = {};
+    const normalizedOptions = [];
 
-    // Already an array
     if (Array.isArray(options)) {
-      // Check if array of {key, value} objects
       if (options.length > 0 && typeof options[0] === 'object' && options[0].key !== undefined) {
         options.forEach(opt => {
-          const content = QuizNormalizer.wrapInHtml(opt.value);
+          const content = QuizNormalizer.normalizeText(opt.value);
           normalizedOptions.push(content);
           keyMap[opt.key] = content;
         });
       } else {
-        // Array of strings
         const keys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
         options.forEach((opt, idx) => {
-          const content = QuizNormalizer.wrapInHtml(typeof opt === 'string' ? opt : String(opt));
+          const content = QuizNormalizer.normalizeText(typeof opt === 'string' ? opt : String(opt));
           normalizedOptions.push(content);
-          if (idx < keys.length) {
-            keyMap[keys[idx]] = content;
-          }
+          if (idx < keys.length) keyMap[keys[idx]] = content;
         });
       }
-    }
-    // Object format { A: "text", B: "text" }
-    else if (typeof options === 'object') {
-      // Sort keys to maintain order (A, B, C, D...)
-      const sortedKeys = Object.keys(options).sort();
-      sortedKeys.forEach(key => {
-        const content = QuizNormalizer.wrapInHtml(options[key]);
+    } else if (typeof options === 'object') {
+      Object.keys(options).sort().forEach(key => {
+        const content = QuizNormalizer.normalizeText(options[key]);
         normalizedOptions.push(content);
         keyMap[key] = content;
       });
@@ -194,63 +179,38 @@ class QuizNormalizer {
   }
 
   /**
-   * Normalize correct answer
-   * Converts answer key (A, B, C, D) to actual HTML content
-   * @param {*} answer - Answer from Coze (could be "A", "B", or actual content)
-   * @param {string} type - Question type
-   * @param {Object} keyMap - Mapping of keys to content from normalizeOptions
-   * @returns {*} Normalized answer as HTML content
+   * Normalize correct answer: convert key (A/B/C/D) to actual content
    */
   static normalizeAnswer(answer, type, keyMap = {}) {
     if (answer === undefined || answer === null) return null;
 
-    // For true/false, normalize to HTML wrapped boolean
     if (type === 'TRUE_FALSE') {
-      if (typeof answer === 'boolean') {
-        return QuizNormalizer.wrapInHtml(answer ? 'True' : 'False');
-      }
-      const boolStr = String(answer).toLowerCase();
-      if (boolStr === 'true' || boolStr === 'đúng' || boolStr === 'yes') {
-        return QuizNormalizer.wrapInHtml('True');
-      }
-      return QuizNormalizer.wrapInHtml('False');
+      if (typeof answer === 'boolean') return answer ? 'True' : 'False';
+      const s = String(answer).toLowerCase();
+      return (s === 'true' || s === 'đúng' || s === 'yes') ? 'True' : 'False';
     }
 
-    // For multiple choice (multiple answers), ensure array of content
     if (type === 'MULTIPLE_ANSWER') {
       const answers = Array.isArray(answer) ? answer : [answer];
       return answers.map(a => {
-        // If answer is a key (A, B, C), convert to content
-        if (typeof a === 'string' && keyMap[a.toUpperCase()]) {
-          return keyMap[a.toUpperCase()];
-        }
-        // Otherwise wrap as HTML
-        return QuizNormalizer.wrapInHtml(a);
+        if (typeof a === 'string' && keyMap[a.toUpperCase()]) return keyMap[a.toUpperCase()];
+        return QuizNormalizer.normalizeText(String(a));
       });
     }
 
-    // For MCQ, convert key to content
     if (typeof answer === 'string') {
-      const upperAnswer = answer.toUpperCase();
-      // If answer is a key (A, B, C, D), get the actual content
-      if (keyMap[upperAnswer]) {
-        return keyMap[upperAnswer];
-      }
-      // If answer is already content, wrap in HTML
-      return QuizNormalizer.wrapInHtml(answer);
+      if (keyMap[answer.toUpperCase()]) return keyMap[answer.toUpperCase()];
+      return QuizNormalizer.normalizeText(answer);
     }
 
-    return QuizNormalizer.wrapInHtml(String(answer));
+    return QuizNormalizer.normalizeText(String(answer));
   }
 
   /**
-   * Normalize a single question from Coze output
-   * @param {Object} cozeQuestion - Question from Coze
-   * @param {string} quizId - Quiz ID to associate
-   * @returns {Object} Normalized question for Backend
+   * Normalize a single question from Coze AI output
+   * All fields stored as plain text + $...$ LaTeX
    */
   static normalizeQuestion(cozeQuestion, quizId) {
-    // Handle different Coze output structures
     const contentObj = cozeQuestion.content || cozeQuestion;
     const prompt = contentObj.prompt || contentObj.question || contentObj.text ||
                    (typeof cozeQuestion.content === 'string' ? cozeQuestion.content : '');
@@ -263,20 +223,17 @@ class QuizNormalizer {
     const skillTag = contentObj.skill_tag || cozeQuestion.skill_tag || null;
 
     const normalizedType = QuizNormalizer.normalizeType(rawType);
-
-    // Normalize options and get keyMap for answer conversion
     const { options: normalizedOptions, keyMap } = QuizNormalizer.normalizeOptions(rawOptions);
 
     return {
       quiz_id: quizId,
-      content: QuizNormalizer.wrapInHtml(prompt),
+      content: QuizNormalizer.normalizeText(prompt),
       type: normalizedType,
       difficulty: QuizNormalizer.normalizeDifficulty(rawBloom),
       options: normalizedOptions,
       correct_answer: QuizNormalizer.normalizeAnswer(rawAnswer, normalizedType, keyMap),
       point: parseFloat(score) || 1.0,
-      explanation: rawExplanation ? QuizNormalizer.wrapInHtml(rawExplanation) : '<p></p>',
-      // Extra metadata (can be stored in JSON field if needed)
+      explanation: rawExplanation ? QuizNormalizer.normalizeText(rawExplanation) : '',
       metadata: {
         skill_tag: skillTag,
         original_qid: cozeQuestion.qid,
@@ -286,19 +243,14 @@ class QuizNormalizer {
 
   /**
    * Normalize full quiz output from Coze
-   * @param {Object} cozeOutput - Full Coze response
-   * @param {string} quizId - Quiz ID
-   * @returns {Object} Normalized quiz data
    */
   static normalizeQuiz(cozeOutput, quizId) {
-    // Handle case where cozeOutput is the questions array directly
     const questions = cozeOutput.question_matrix ||
                       cozeOutput.questions ||
                       (Array.isArray(cozeOutput) ? cozeOutput : []);
 
     const normalizedQuestions = questions.map(q => QuizNormalizer.normalizeQuestion(q, quizId));
 
-    // Validate total score if provided
     const expectedTotal = cozeOutput.total_score;
     if (expectedTotal) {
       const actualTotal = normalizedQuestions.reduce((sum, q) => sum + q.point, 0);
@@ -323,27 +275,18 @@ class QuizNormalizer {
   }
 
   /**
-   * Parse JSON string safely
-   * @param {string} jsonString - JSON string from Coze
-   * @returns {Object|null} Parsed object or null
+   * Parse JSON string safely (strips markdown code blocks)
    */
   static safeParseJSON(jsonString) {
     if (!jsonString) return null;
     if (typeof jsonString !== 'string') return jsonString;
 
     try {
-      // Remove markdown code blocks if present
       let cleaned = jsonString.trim();
-      if (cleaned.startsWith('```json')) {
-        cleaned = cleaned.slice(7);
-      } else if (cleaned.startsWith('```')) {
-        cleaned = cleaned.slice(3);
-      }
-      if (cleaned.endsWith('```')) {
-        cleaned = cleaned.slice(0, -3);
-      }
+      if (cleaned.startsWith('```json')) cleaned = cleaned.slice(7);
+      else if (cleaned.startsWith('```')) cleaned = cleaned.slice(3);
+      if (cleaned.endsWith('```')) cleaned = cleaned.slice(0, -3);
       cleaned = cleaned.trim();
-
       return JSON.parse(cleaned);
     } catch (error) {
       console.error('Failed to parse JSON from Coze:', error.message);

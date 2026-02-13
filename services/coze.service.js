@@ -54,16 +54,26 @@ class CozeService {
 - Số lượng câu hỏi: CHÍNH XÁC ${numberOfQuestions} câu (không nhiều hơn, không ít hơn)
 - Nếu prompt trước đó có đề cập số khác, BỎ QUA và chỉ tạo đúng ${numberOfQuestions} câu
 
+ĐỊNH DẠNG TOÁN HỌC (BẮT BUỘC):
+- Mọi biểu thức toán, công thức, ký hiệu toán học PHẢI được bọc trong dấu $...$ (LaTeX inline)
+- Ví dụ ĐÚNG: "Giải phương trình $3x - 7 = 2x + 5$"
+- Ví dụ SAI: "Giải phương trình 3x - 7 = 2x + 5"
+- Ví dụ ĐÚNG option: "$x = 12$"
+- Ví dụ SAI option: "x = 12"
+- Dùng LaTeX chuẩn: $\\frac{1}{2}$, $\\sqrt{3}$, $\\Delta$, $x^2$, $\\alpha$, $\\leq$, $\\times$
+- KHÔNG dùng Unicode toán học (², ×, Δ, √). LUÔN dùng LaTeX thay thế
+- Phần text thường (không phải toán) thì viết bình thường, KHÔNG bọc trong $...$
+
 Trả về dưới dạng JSON với cấu trúc:
 {
   "questions": [
     {
       "qid": 1,
       "type": "MCQ",
-      "content": "Nội dung câu hỏi",
-      "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
+      "content": "Cho phương trình bậc hai $y = 2x^2 - 4x + 1$. Giá trị delta của phương trình này là bao nhiêu?",
+      "options": {"A": "$\\Delta = 16 - 8 = 8$", "B": "$\\Delta = (-4)^2 - 4 \\times 2 \\times 1 = 8$", "C": "...", "D": "..."},
       "answer": "A",
-      "explanation": "Giải thích",
+      "explanation": "Công thức tính delta: $\\Delta = b^2 - 4ac$ với $a = 2$, $b = -4$, $c = 1$.",
       "bloom": "understanding",
       "score": ${(10 / numberOfQuestions).toFixed(2)}
     }
