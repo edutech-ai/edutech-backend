@@ -1,6 +1,7 @@
 const Question = require('../models/Question');
 const Quiz = require('../models/Quiz');
 const { validationResult } = require('express-validator');
+const NotificationHelper = require('../utils/notificationHelper');
 
 class QuestionController {
   // Tạo câu hỏi mới
@@ -99,6 +100,10 @@ class QuestionController {
       }));
 
       const questionIds = await Question.bulkCreate(questionsWithQuizId);
+
+      NotificationHelper.notifyQuizCreated(quiz.teacher_id, quiz.title, quiz_id).catch(err =>
+        console.error('Create notification error:', err)
+      );
 
       res.status(201).json({
         success: true,

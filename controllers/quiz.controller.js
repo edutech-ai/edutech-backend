@@ -1,7 +1,6 @@
 const Quiz = require('../models/Quiz');
 const Question = require('../models/Question');
 const { validationResult } = require('express-validator');
-const NotificationHelper = require('../utils/notificationHelper');
 
 class QuizController {
   // Tạo quiz mới
@@ -68,11 +67,6 @@ class QuizController {
       });
 
       const quiz = await Quiz.findById(quizId);
-
-      // Tạo thông báo quiz được tạo thành công
-      NotificationHelper.notifyQuizCreated(teacher_id, title, quizId).catch(err =>
-        console.error('Create notification error:', err)
-      );
 
       res.status(201).json({
         success: true,

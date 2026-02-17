@@ -14,6 +14,14 @@ const safeJSONParse = (str) => {
   }
 };
 
+const normalizeCorrectAnswer = (correctAnswer, options) => {
+  if (typeof correctAnswer === 'number' && Array.isArray(options) && options.length > 0) {
+    const opt = options[correctAnswer];
+    if (opt !== undefined) return typeof opt === 'string' ? opt : opt.text;
+  }
+  return correctAnswer;
+};
+
 class Question {
   // Tạo câu hỏi mới
   static async create({ quiz_id, document_id, content, options, correct_answer, type = 'MCQ', point = 1.0, explanation, difficulty = 'COMPREHENSION' }) {
@@ -43,9 +51,11 @@ class Question {
     );
 
     if (rows[0]) {
-      // Parse JSON fields with error handling
       rows[0].options = safeJSONParse(rows[0].options);
-      rows[0].correct_answer = safeJSONParse(rows[0].correct_answer);
+      rows[0].correct_answer = normalizeCorrectAnswer(
+        safeJSONParse(rows[0].correct_answer),
+        rows[0].options
+      );
     }
 
     return rows[0];
@@ -59,11 +69,12 @@ class Question {
     );
 
     return rows.map(row => {
-      // Parse JSON fields
       row.options = safeJSONParse(row.options);
-      row.correct_answer = safeJSONParse(row.correct_answer);
+      row.correct_answer = normalizeCorrectAnswer(
+        safeJSONParse(row.correct_answer),
+        row.options
+      );
 
-      // Ẩn đáp án nếu không cần thiết (cho học sinh làm bài)
       if (!includeAnswers) {
         delete row.correct_answer;
         delete row.explanation;
