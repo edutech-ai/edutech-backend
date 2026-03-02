@@ -209,7 +209,7 @@ router.post('/login', loginValidation, AuthController.login);
  *       401:
  *         description: Unauthorized
  */
-router.post('/logout', authenticate, AuthController.logout);
+router.post('/logout', AuthController.logout);
 
 /**
  * @swagger

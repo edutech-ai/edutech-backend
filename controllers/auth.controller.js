@@ -24,7 +24,7 @@ class AuthController {
       if (existingUser) {
         return res.status(409).json({
           success: false,
-          message: 'Email already exists'
+          message: 'Email đã được sử dụng'
         });
       }
 
@@ -43,14 +43,14 @@ class AuthController {
 
       res.status(200).json({
         success: true,
-        message: 'OTP sent to your email. Please verify to complete registration.',
+        message: 'Mã OTP đã được gửi đến email. Vui lòng xác nhận để hoàn tất đăng ký.',
         data: { email }
       });
     } catch (error) {
       console.error('Register error:', error);
       res.status(500).json({
         success: false,
-        message: 'Registration failed',
+        message: 'Đăng ký thất bại, vui lòng thử lại',
         error: error.message
       });
     }
@@ -74,7 +74,7 @@ class AuthController {
       if (!isValid) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid or expired OTP'
+          message: 'Mã OTP không hợp lệ hoặc đã hết hạn'
         });
       }
 
@@ -85,7 +85,7 @@ class AuthController {
       if (!pendingData) {
         return res.status(400).json({
           success: false,
-          message: 'Registration session expired. Please register again.'
+          message: 'Phiên đăng ký đã hết hạn. Vui lòng đăng ký lại.'
         });
       }
 
@@ -119,7 +119,7 @@ class AuthController {
 
       res.status(201).json({
         success: true,
-        message: 'Registration verified successfully',
+        message: 'Đăng ký tài khoản thành công',
         data: {
           userId,
           accessToken,
@@ -131,7 +131,7 @@ class AuthController {
       console.error('Verify register error:', error);
       res.status(500).json({
         success: false,
-        message: 'Server error'
+        message: 'Lỗi máy chủ, vui lòng thử lại'
       });
     }
   }
@@ -153,14 +153,14 @@ class AuthController {
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email or password'
+          message: 'Email hoặc mật khẩu không đúng'
         });
       }
 
       if (user.status !== 'active') {
         return res.status(403).json({
           success: false,
-          message: 'Account is banned'
+          message: 'Tài khoản đã bị khóa'
         });
       }
 
@@ -168,7 +168,7 @@ class AuthController {
       if (!isPasswordValid) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid email or password'
+          message: 'Email hoặc mật khẩu không đúng'
         });
       }
 
@@ -194,7 +194,7 @@ class AuthController {
 
       res.json({
         success: true,
-        message: 'Login successful',
+        message: 'Đăng nhập thành công',
         data: {
           user,
           accessToken,
@@ -206,7 +206,7 @@ class AuthController {
       console.error('Login error:', error);
       res.status(500).json({
         success: false,
-        message: 'Login failed',
+        message: 'Đăng nhập thất bại, vui lòng thử lại',
         error: error.message
       });
     }
@@ -222,7 +222,7 @@ class AuthController {
       console.error('Get profile error:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to get profile',
+        message: 'Lỗi lấy thông tin người dùng',
         error: error.message
       });
     }
@@ -232,13 +232,13 @@ class AuthController {
     try {
       res.json({
         success: true,
-        message: 'Logout successful'
+        message: 'Đăng xuất thành công'
       });
     } catch (error) {
       console.error('Logout error:', error);
       res.status(500).json({
         success: false,
-        message: 'Logout failed',
+        message: 'Đăng xuất thất bại',
         error: error.message
       });
     }
@@ -263,7 +263,7 @@ class AuthController {
       if (!isPasswordValid) {
         return res.status(400).json({
           success: false,
-          message: 'Current password is incorrect'
+          message: 'Mật khẩu hiện tại không đúng'
         });
       }
 
@@ -276,13 +276,13 @@ class AuthController {
 
       res.json({
         success: true,
-        message: 'Password changed successfully'
+        message: 'Đổi mật khẩu thành công'
       });
     } catch (error) {
       console.error('Change password error:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to change password',
+        message: 'Đổi mật khẩu thất bại',
         error: error.message
       });
     }
@@ -415,7 +415,7 @@ class AuthController {
       if (!refreshToken) {
         return res.status(400).json({
           success: false,
-          message: 'Refresh token is required'
+          message: 'Refresh token không được để trống'
         });
       }
 
@@ -426,7 +426,7 @@ class AuthController {
       if (!decoded) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid or expired refresh token'
+          message: 'Refresh token không hợp lệ hoặc đã hết hạn'
         });
       }
 
@@ -435,7 +435,7 @@ class AuthController {
       if (!tokenData) {
         return res.status(401).json({
           success: false,
-          message: 'Refresh token not found or has been revoked'
+          message: 'Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại'
         });
       }
 
@@ -444,7 +444,7 @@ class AuthController {
 
       res.json({
         success: true,
-        message: 'Access token refreshed successfully',
+        message: 'Làm mới token thành công',
         data: {
           accessToken: newAccessToken,
           expiresIn: 900 // 15 phút
@@ -454,7 +454,7 @@ class AuthController {
       console.error('Refresh token error:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to refresh token',
+        message: 'Lỗi máy chủ, vui lòng thử lại',
         error: error.message
       });
     }
