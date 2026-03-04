@@ -3,6 +3,7 @@ const http = require("http");
 const path = require("path");
 const session = require("express-session");
 const cors = require("cors");
+const fileUpload = require("express-fileupload");
 require("dotenv").config({ debug: false });
 
 const passport = require("./config/passport");
@@ -13,6 +14,9 @@ const db = require("./config/database");
 
 // Import Redis connection (for OTP storage)
 const redisClient = require("./config/redis");
+
+// Import OMR Queue Worker
+const { omrQueue } = require('./queues/omr.queue');
 
 const app = express();
 const server = http.createServer(app);
@@ -33,6 +37,14 @@ app.use(
 // Body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// File upload middleware
+app.use(fileUpload({
+  useTempFiles: true,
+  tempFileDir: path.join(__dirname, 'temp'),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max file size
+  abortOnLimit: true
+}));
 
 // Session middleware
 app.use(
@@ -106,6 +118,8 @@ app.use("/api/v1/payment", require("./routes/payment.route"));
 app.use("/api/v1", require("./routes/performance.route"));
 app.use("/api/v1/ai", require("./routes/ai.route"));
 app.use("/api/v1/admin", require("./routes/admin.route"));
+app.use("/api/v1/omr", require("./routes/omr.route"));
+app.use("/api/debug", require("./routes/debug.route"));
 // app.use("/api/v1/users", require("./routes/user.route"));
 // Add more routes as needed
 
@@ -142,4 +156,5 @@ server.listen(PORT, () => {
   console.log(`📘 Swagger docs: http://localhost:${PORT}/docs`);
   console.log(`📝 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`💾 Database: ${process.env.DB_HOST}:${process.env.DB_PORT}`);
+  console.log(`🔄 OMR Queue Worker: Active`);
 });

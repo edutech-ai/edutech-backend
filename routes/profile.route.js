@@ -2,6 +2,7 @@ const express = require('express');
 const ProfileController = require('../controllers/profile.controller');
 const { authenticate } = require('../middlewares/auth');
 const { profileValidation } = require('../middlewares/profile.validator');
+const UsageService = require('../services/usage.service');
 
 const router = express.Router();
 
@@ -358,6 +359,113 @@ router.delete('/', authenticate, ProfileController.deleteProfile);
  *       404:
  *         description: User không tồn tại
  */
+/**
+ * @swagger
+ * /api/v1/profile/usage:
+ *   get:
+ *     summary: Xem mức sử dụng hiện tại và giới hạn theo gói
+ *     description: |
+ *       Trả về thông tin gói hiện tại, số lượng đã dùng và giới hạn:
+ *       - Số lớp học
+ *       - Số quiz đã tạo trong tháng
+ *       - Dung lượng lưu trữ (MB)
+ *       - Quyền dùng AI nâng cao
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Thông tin usage
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     plan:
+ *                       type: object
+ *                       properties:
+ *                         code:
+ *                           type: string
+ *                           example: FREE
+ *                         name:
+ *                           type: string
+ *                           example: Miễn phí
+ *                         subscription_end_date:
+ *                           type: string
+ *                           format: date-time
+ *                           nullable: true
+ *                     usage:
+ *                       type: object
+ *                       properties:
+ *                         classrooms:
+ *                           type: object
+ *                           properties:
+ *                             used:
+ *                               type: integer
+ *                               example: 1
+ *                             limit:
+ *                               type: integer
+ *                               example: 2
+ *                             remaining:
+ *                               type: integer
+ *                               example: 1
+ *                         quizzes_this_month:
+ *                           type: object
+ *                           properties:
+ *                             used:
+ *                               type: integer
+ *                               example: 3
+ *                             limit:
+ *                               type: integer
+ *                               example: 10
+ *                             remaining:
+ *                               type: integer
+ *                               example: 7
+ *                         storage_mb:
+ *                           type: object
+ *                           properties:
+ *                             used:
+ *                               type: number
+ *                               example: 15.24
+ *                             limit:
+ *                               type: integer
+ *                               example: 100
+ *                             remaining:
+ *                               type: number
+ *                               example: 84.76
+ *                         advanced_ai:
+ *                           type: object
+ *                           properties:
+ *                             available:
+ *                               type: boolean
+ *                               example: false
+ *       401:
+ *         description: Chưa đăng nhập
+ */
+router.get('/usage', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const usage = await UsageService.getUsageSummary(userId);
+
+    res.json({
+      success: true,
+      data: usage
+    });
+  } catch (error) {
+    console.error('Get usage error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy thông tin sử dụng',
+      error: error.message
+    });
+  }
+});
+
 router.get('/:userId', ProfileController.getProfileById);
 
 module.exports = router;

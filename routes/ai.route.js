@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const AIController = require('../controllers/ai.controller');
 const { authenticate } = require('../middlewares/auth');
+const { checkQuizQuota, checkAdvancedAIAccess } = require('../middlewares/quota');
 const { createQuizWithQuestionsValidator } = require('../middlewares/ai.validator');
 
 /**
@@ -78,6 +79,7 @@ const { createQuizWithQuestionsValidator } = require('../middlewares/ai.validato
 router.post(
   '/create-quiz-with-questions',
   authenticate,
+  checkQuizQuota,
   createQuizWithQuestionsValidator,
   AIController.createQuizWithQuestions
 );
@@ -222,6 +224,7 @@ const { analyzeQuizValidator } = require('../middlewares/ai.validator');
 router.post(
   '/analyze-quiz',
   authenticate,
+  checkAdvancedAIAccess,
   analyzeQuizValidator,
   AIController.analyzeQuiz
 );

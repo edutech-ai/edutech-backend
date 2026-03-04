@@ -1,0 +1,36 @@
+{
+  "comment": "Final calibration: Balanced row_height (2.05) and spacing (6.95) to stop drift",
+  
+  "student_id": {
+    "x_percent": 72.8,
+    "y_percent": 12.9,
+    "bubble_size_percent": 0.85,
+    "spacing_x_percent": 1.9,
+    "spacing_y_percent": 1.9
+  },
+  
+  "exam_code": {
+    "x_percent": 86.7,
+    "y_percent": 12.9,
+    "bubble_size_percent": 0.85,
+    "spacing_x_percent": 1.9,
+    "spacing_y_percent": 1.9
+  },
+  
+  "answers": {
+    "column_1": {
+      "x_percent": 24.6,
+      "y_percent": 40.3,
+      "row_height_percent": 2.15,
+      "bubble_size_percent": 1.2,
+      "spacing_percent": 6.25
+    },
+    "column_2": {
+      "x_percent": 63.5,
+      "y_percent": 40.3,
+      "row_height_percent": 2.15,
+      "bubble_size_percent": 1.2,
+      "spacing_percent": 6.25
+    }
+  }
+}

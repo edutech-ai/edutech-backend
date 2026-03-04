@@ -8,6 +8,15 @@ function generateRandomCode(length = 8) {
 }
 
 /**
+ * Generate a random 3-digit exam code (100-999)
+ * @returns {string} 3-digit code, e.g. "234"
+ */
+function generateThreeDigitCode() {
+    const num = Math.floor(Math.random() * 900) + 100; // 100 - 999
+    return String(num);
+}
+
+/**
  * Generate exam code with custom prefix
  * @param {string} prefix - Custom prefix (e.g., 'MATH', 'ENG')
  * @param {number} length - Length of random part (default 6)
@@ -21,5 +30,6 @@ function generateExamCodeWithPrefix(prefix = '', length = 6) {
 
 module.exports = {
     generateRandomCode,
-    generateExamCodeWithPrefix
+    generateExamCodeWithPrefix,
+    generateThreeDigitCode
 };

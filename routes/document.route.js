@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const documentController = require('../controllers/document.controller');
 const { authenticate } = require('../middlewares/auth');
+const { checkStorageQuota } = require('../middlewares/quota');
 const { upload } = require('../utils/cloudinary');
 const {
   uploadDocumentValidator,
@@ -112,7 +113,7 @@ router.get('/:id', authenticate, getDocumentValidator, documentController.getDoc
  *       201:
  *         description: Document uploaded successfully
  */
-router.post('/upload', authenticate, upload.single('file'), uploadDocumentValidator, documentController.uploadDocument);
+router.post('/upload', authenticate, upload.single('file'), checkStorageQuota, uploadDocumentValidator, documentController.uploadDocument);
 
 /**
  * @swagger

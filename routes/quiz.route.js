@@ -9,6 +9,7 @@ const {
   quizQueryValidation,
   updateVisibilityValidator
 } = require('../middlewares/quiz.validator');
+const { checkQuizQuota } = require('../middlewares/quota');
 
 const router = express.Router();
 
@@ -66,7 +67,7 @@ const router = express.Router();
  *       409:
  *         description: Exam code already exists
  */
-router.post('/', authenticate, createQuizValidation, QuizController.createQuiz);
+router.post('/', authenticate, checkQuizQuota, createQuizValidation, QuizController.createQuiz);
 
 /**
  * @swagger

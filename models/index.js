@@ -38,9 +38,20 @@ Invoice.belongsTo(Transaction, {
   as: 'transaction'
 });
 
+// Import OMR models
+const AnswerTemplate = require('./AnswerTemplate');
+const AnswerKey = require('./AnswerKey');
+const ExamBatch = require('./ExamBatch');
+const Submission = require('./Submission');
+
 module.exports = {
   SubscriptionPlan,
   Subscription,
   Transaction,
-  Invoice
+  Invoice,
+  // OMR Models
+  AnswerTemplate,
+  AnswerKey,
+  ExamBatch,
+  Submission
 };

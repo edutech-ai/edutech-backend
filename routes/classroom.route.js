@@ -4,6 +4,7 @@ const multer = require('multer');
 const classroomController = require('../controllers/classroom.controller');
 const classroomValidator = require('../middlewares/classroom.validator');
 const { authenticate } = require('../middlewares/auth');
+const { checkClassroomQuota } = require('../middlewares/quota');
 
 // Cấu hình multer để upload file
 const storage = multer.memoryStorage();
@@ -65,6 +66,7 @@ const upload = multer({
 router.post(
   '/',
   authenticate,
+  checkClassroomQuota,
   classroomValidator.createClassroom,
   classroomController.createClassroom
 );

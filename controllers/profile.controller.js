@@ -2,12 +2,16 @@ const UserProfile = require('../models/UserProfile');
 const User = require('../models/User');
 const { validationResult } = require('express-validator');
 const NotificationHelper = require('../utils/notificationHelper');
+const UsageService = require('../services/usage.service');
 
 class ProfileController {
   static async getMyProfile(req, res) {
     try {
-      const profile = await UserProfile.findFullProfileByUserId(req.user.id);
-
+      const [profile, usage] = await Promise.all([
+        UserProfile.findFullProfileByUserId(req.user.id),
+        UsageService.getUsageSummary(req.user.id)
+      ]);
+      
       if (!profile) {
         return res.status(404).json({
           success: false,
@@ -17,7 +21,11 @@ class ProfileController {
 
       res.json({
         success: true,
-        data: profile
+        data: {
+          ...profile,
+          subscription: usage.plan,
+          usage: usage.usage
+        }
       });
     } catch (error) {
       console.error('Get profile error:', error);
