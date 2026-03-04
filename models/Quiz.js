@@ -1,6 +1,6 @@
 const db = require('../config/database');
 const { v7: uuidv7 } = require('uuid');
-const { generateRandomCode } = require('../utils/code_generator');
+const { generateRandomCode, generateThreeDigitCode } = require('../utils/code_generator');
 const { generateQRCodeDataURL } = require('../utils/qr_generator');
 
 class Quiz {
@@ -29,7 +29,7 @@ class Quiz {
       const maxAttempts = 10;
 
       while (attempts < maxAttempts) {
-        const candidateCode = generateRandomCode(8);
+        const candidateCode = generateThreeDigitCode();
         const existing = await this.findByExamCode(candidateCode);
 
         if (!existing) {
