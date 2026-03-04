@@ -832,13 +832,21 @@ exports.getAnswerKeyByExamCode = async (req, res) => {
     }
 
     const answerKey = answerKeyRows[0];
-    const correctAnswers = JSON.parse(answerKey.correct_answers);
+    const correctAnswers = typeof answerKey.correct_answers === 'string'
+      ? JSON.parse(answerKey.correct_answers)
+      : answerKey.correct_answers;
 
     // Tổng hợp thông tin trả về
     const totalQuestions = Object.keys(correctAnswers).length;
     const mappedAnswers = Object.entries(correctAnswers)
       .filter(([, v]) => v !== null)
       .reduce((acc, [k, v]) => { acc[k] = v; return acc; }, {});
+
+    const scorePer = answerKey.score_per_question
+      ? (typeof answerKey.score_per_question === 'string'
+          ? JSON.parse(answerKey.score_per_question)
+          : answerKey.score_per_question)
+      : null;
 
     res.json({
       success: true,
@@ -849,7 +857,7 @@ exports.getAnswerKeyByExamCode = async (req, res) => {
         total_questions: totalQuestions,
         mapped_questions: Object.keys(mappedAnswers).length,
         correct_answers: correctAnswers,
-        score_per_question: answerKey.score_per_question ? JSON.parse(answerKey.score_per_question) : null,
+        score_per_question: scorePer,
         default_score_per_question: answerKey.default_score_per_question
       }
     });
