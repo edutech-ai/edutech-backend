@@ -796,7 +796,7 @@ exports.getAnswerKeyByExamCode = async (req, res) => {
 
     // Lấy thông tin batch
     const [batches] = await database.query(
-      `SELECT eb.*, q.title as quiz_title, q.id as quiz_id
+      `SELECT eb.*, q.title as quiz_title, q.id as quiz_id, q.exam_code as quiz_exam_code
        FROM exam_batches eb
        JOIN quizzes q ON eb.quiz_id = q.id
        WHERE eb.id = ? AND eb.is_deleted = FALSE`,
@@ -808,11 +808,16 @@ exports.getAnswerKeyByExamCode = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Exam batch không tồn tại' });
     }
 
-    // Nếu truyền exam_code thì kiểm tra có khớp với mã đề của batch không
-    if (exam_code && batch.access_code && String(exam_code) !== String(batch.access_code)) {
+    // Mã đề hiển thị: ưu tiên access_code của batch (nếu hợp lệ), fallback về exam_code của quiz
+    const effectiveExamCode = (batch.access_code && batch.access_code !== 'string')
+      ? batch.access_code
+      : batch.quiz_exam_code;
+
+    // Nếu truyền exam_code thì kiểm tra có khớp với mã đề không
+    if (exam_code && effectiveExamCode && String(exam_code) !== String(effectiveExamCode)) {
       return res.status(404).json({
         success: false,
-        message: `Mã đề "${exam_code}" không khớp với đợt thi này (mã đề: ${batch.access_code})`
+        message: `Mã đề "${exam_code}" không khớp với đợt thi này (mã đề: ${effectiveExamCode})`
       });
     }
 
@@ -839,7 +844,7 @@ exports.getAnswerKeyByExamCode = async (req, res) => {
       success: true,
       data: {
         batch_id,
-        exam_code: batch.access_code || null,
+        exam_code: effectiveExamCode || null,
         quiz_title: batch.quiz_title,
         total_questions: totalQuestions,
         mapped_questions: Object.keys(mappedAnswers).length,
