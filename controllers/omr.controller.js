@@ -56,9 +56,15 @@ exports.createExamBatch = async (req, res) => {
     // Insert answer key vào DB với UUID
     const answerKeyId = uuidv7();
     await database.query(
-      `INSERT INTO answer_keys (id, quiz_id, correct_answers, default_score_per_question, created_by) 
-       VALUES (?, ?, ?, ?, ?)`,
-      [answerKeyId, quiz_id, JSON.stringify(answerKey.correct_answers), answerKey.default_score_per_question, userId]
+      `INSERT INTO answer_keys (id, quiz_id, correct_answers, score_per_question, default_score_per_question, created_by) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        answerKeyId, quiz_id,
+        JSON.stringify(answerKey.correct_answers),
+        answerKey.score_per_question ? JSON.stringify(answerKey.score_per_question) : null,
+        answerKey.default_score_per_question,
+        userId
+      ]
     );
 
     // Tạo exam batch với UUID
@@ -852,6 +858,7 @@ exports.getAnswerKeyByExamCode = async (req, res) => {
       success: true,
       data: {
         batch_id,
+        quiz_id: batch.quiz_id,
         exam_code: effectiveExamCode || null,
         quiz_title: batch.quiz_title,
         total_questions: totalQuestions,

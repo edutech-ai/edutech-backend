@@ -113,11 +113,17 @@ class OMRAnswerMapper {
         questionNum++;
       }
 
+      const scores = Object.values(scorePerQuestion);
+      const totalScore = scores.reduce((sum, s) => sum + s, 0);
+      const defaultScore = scores.length > 0 ? scores[0] : 1;
+
       return {
         quiz_id,
         exam_code,
         correct_answers: answerKey,
         score_per_question: Object.keys(scorePerQuestion).length > 0 ? scorePerQuestion : null,
+        default_score_per_question: defaultScore,
+        total_score: totalScore,
         total_questions: questions.length
       };
 
