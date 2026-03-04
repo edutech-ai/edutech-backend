@@ -848,11 +848,28 @@ exports.getAnswerKeyByExamCode = async (req, res) => {
       .filter(([, v]) => v !== null)
       .reduce((acc, [k, v]) => { acc[k] = v; return acc; }, {});
 
-    const scorePer = answerKey.score_per_question
+    let scorePer = answerKey.score_per_question
       ? (typeof answerKey.score_per_question === 'string'
           ? JSON.parse(answerKey.score_per_question)
           : answerKey.score_per_question)
       : null;
+
+    let defaultScore = answerKey.default_score_per_question;
+
+    // Nếu DB chưa có điểm (data cũ), lấy trực tiếp từ bảng questions
+    if (!scorePer || !defaultScore) {
+      const [questionRows] = await database.query(
+        `SELECT point FROM questions WHERE quiz_id = ? AND is_deleted = FALSE ORDER BY created_at`,
+        [batch.quiz_id]
+      );
+      if (questionRows.length > 0) {
+        scorePer = {};
+        questionRows.forEach((q, idx) => {
+          scorePer[idx + 1] = q.point || 1;
+        });
+        defaultScore = questionRows[0].point || 1;
+      }
+    }
 
     res.json({
       success: true,
@@ -865,7 +882,7 @@ exports.getAnswerKeyByExamCode = async (req, res) => {
         mapped_questions: Object.keys(mappedAnswers).length,
         correct_answers: correctAnswers,
         score_per_question: scorePer,
-        default_score_per_question: answerKey.default_score_per_question
+        default_score_per_question: defaultScore
       }
     });
 
