@@ -14,7 +14,7 @@ const QUESTION_TYPE_MAP = {
 const BLOOM_LEVEL_MAP = {
   'recognition': 'KNOWLEDGE',
   'understanding': 'COMPREHENSION',
-  'application': 'APPLICATION',
+  'applying': 'APPLICATION',
   'high_application': 'ANALYSIS',
   'knowledge': 'KNOWLEDGE',
   'comprehension': 'COMPREHENSION',
@@ -23,7 +23,7 @@ const BLOOM_LEVEL_MAP = {
   'evaluation': 'EVALUATION',
   'KNOWLEDGE': 'KNOWLEDGE',
   'COMPREHENSION': 'COMPREHENSION',
-  'APPLICATION': 'APPLICATION',
+  'APPLYING': 'APPLICATION',
   'ANALYSIS': 'ANALYSIS',
   'SYNTHESIS': 'SYNTHESIS',
   'EVALUATION': 'EVALUATION',

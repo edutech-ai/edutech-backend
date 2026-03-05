@@ -74,7 +74,7 @@ Trả về dưới dạng JSON với cấu trúc:
       "options": {"A": "$\\Delta = 16 - 8 = 8$", "B": "$\\Delta = (-4)^2 - 4 \\times 2 \\times 1 = 8$", "C": "...", "D": "..."},
       "answer": "A",
       "explanation": "Công thức tính delta: $\\Delta = b^2 - 4ac$ với $a = 2$, $b = -4$, $c = 1$.",
-      "bloom": "understanding",
+      "bloom": "applying",
       "score": ${(10 / numberOfQuestions).toFixed(2)}
     }
   ],

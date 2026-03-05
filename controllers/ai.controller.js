@@ -37,36 +37,36 @@ class AIController {
       } = req.body;
 
       // 0. Validate prompt
-      if (customPrompt) {
-        const validation = await cozeService.validatePrompt(customPrompt);
+      // if (customPrompt) {
+      //   const validation = await cozeService.validatePrompt(customPrompt);
 
-        // If validation service fails (API error, timeout, etc.), block creation
-        if (!validation.success) {
-          return res.status(400).json({
-            success: false,
-            message: 'Không thể xác thực nội dung yêu cầu. Vui lòng thử lại sau.',
-            error: validation.error
-          });
-        }
+      //   // If validation service fails (API error, timeout, etc.), block creation
+      //   if (!validation.success) {
+      //     return res.status(400).json({
+      //       success: false,
+      //       message: 'Không thể xác thực nội dung yêu cầu. Vui lòng thử lại sau.',
+      //       error: validation.error
+      //     });
+      //   }
 
-        // If validation service returns rejection
-        if (validation.data) {
-          const { is_test_description, comment, suggested_fix } = validation.data;
+      //   // If validation service returns rejection
+      //   if (validation.data) {
+      //     const { is_test_description, comment, suggested_fix } = validation.data;
 
-          if (is_test_description === false) {
-            return res.status(200).json({
-              success: false,
-              message: 'Mô tả bài kiểm tra chưa đủ thông tin hoặc không hợp lệ',
-              data: {
-                is_test_description: false,
-                comment,
-                suggested_fix,
-                validation_result: validation.data
-              }
-            });
-          }
-        }
-      }
+      //     if (is_test_description === false) {
+      //       return res.status(200).json({
+      //         success: false,
+      //         message: 'Mô tả bài kiểm tra chưa đủ thông tin hoặc không hợp lệ',
+      //         data: {
+      //           is_test_description: false,
+      //           comment,
+      //           suggested_fix,
+      //           validation_result: validation.data
+      //         }
+      //       });
+      //     }
+      //   }
+      // }
 
       const teacherId = req.user.id;
 
