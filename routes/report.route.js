@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { body } = require('express-validator');
-const { authenticate, authenticateOptional } = require('../middlewares/auth');
+const { authenticate, authenticateOptional, authorizeAdmin } = require('../middlewares/auth');
 const ReportController = require('../controllers/report.controller');
 
 const bugReportValidation = [
@@ -488,5 +488,9 @@ router.delete('/features/:id', authenticate, ReportController.deleteFeatureReque
  *         description: Lỗi server
  */
 router.post('/features/:id/like', authenticate, ReportController.toggleLike);
+
+// ─── Admin Status Updates ─────────────────────────────────────
+router.patch('/bugs/:id/status', authenticate, authorizeAdmin, ReportController.updateBugStatus);
+router.patch('/features/:id/status', authenticate, authorizeAdmin, ReportController.updateFeatureStatus);
 
 module.exports = router;

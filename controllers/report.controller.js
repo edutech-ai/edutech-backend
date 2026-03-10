@@ -160,6 +160,42 @@ class ReportController {
       res.status(500).json({ success: false, message: 'Lỗi khi thực hiện thao tác', error: error.message });
     }
   }
+
+  static async updateBugStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      const valid = ['pending', 'confirmed', 'fixed'];
+      if (!valid.includes(status)) {
+        return res.status(400).json({ success: false, message: 'Trạng thái không hợp lệ' });
+      }
+      const report = await BugReport.findById(parseInt(id));
+      if (!report) return res.status(404).json({ success: false, message: 'Không tìm thấy báo cáo' });
+      const updated = await BugReport.updateStatus(parseInt(id), status);
+      res.json({ success: true, data: updated });
+    } catch (error) {
+      console.error('updateBugStatus error:', error);
+      res.status(500).json({ success: false, message: 'Lỗi khi cập nhật trạng thái', error: error.message });
+    }
+  }
+
+  static async updateFeatureStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      const valid = ['pending', 'confirmed', 'deployed'];
+      if (!valid.includes(status)) {
+        return res.status(400).json({ success: false, message: 'Trạng thái không hợp lệ' });
+      }
+      const request = await FeatureRequest.findById(parseInt(id));
+      if (!request) return res.status(404).json({ success: false, message: 'Không tìm thấy đề xuất' });
+      const updated = await FeatureRequest.updateStatus(parseInt(id), status);
+      res.json({ success: true, data: updated });
+    } catch (error) {
+      console.error('updateFeatureStatus error:', error);
+      res.status(500).json({ success: false, message: 'Lỗi khi cập nhật trạng thái', error: error.message });
+    }
+  }
 }
 
 module.exports = ReportController;
