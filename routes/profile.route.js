@@ -3,6 +3,8 @@ const ProfileController = require('../controllers/profile.controller');
 const { authenticate } = require('../middlewares/auth');
 const { profileValidation } = require('../middlewares/profile.validator');
 const UsageService = require('../services/usage.service');
+const BugReport = require('../models/BugReport');
+const FeatureRequest = require('../models/FeatureRequest');
 
 const router = express.Router();
 
@@ -463,6 +465,112 @@ router.get('/usage', authenticate, async (req, res) => {
       message: 'Lỗi khi lấy thông tin sử dụng',
       error: error.message
     });
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/profile/reports:
+ *   get:
+ *     summary: Lấy danh sách báo cáo lỗi của tôi
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Số trang
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Số lượng mỗi trang
+ *     responses:
+ *       200:
+ *         description: Danh sách báo cáo lỗi của người dùng hiện tại
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       title:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *                         enum: [pending, confirmed, fixed]
+ *                       attachments:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                       author_name:
+ *                         type: string
+ *                       avatar_url:
+ *                         type: string
+ *                       is_own:
+ *                         type: boolean
+ *                       created_at:
+ *                         type: string
+ *                         format: date-time
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ *       401:
+ *         description: Chưa đăng nhập
+ *       500:
+ *         description: Lỗi server
+ */
+router.get('/reports', authenticate, async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const result = await BugReport.findAll({
+      user_id: req.user.id,
+      requestUserId: req.user.id,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('getMyReports error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi khi tải báo cáo', error: error.message });
+  }
+});
+
+router.get('/features', authenticate, async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const result = await FeatureRequest.findAll({
+      user_id: req.user.id,
+      requestUserId: req.user.id,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('getMyFeatures error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi khi tải đề xuất', error: error.message });
   }
 });
 
