@@ -734,6 +734,242 @@ const getUserGrowthChart = async (req, res) => {
   }
 };
 
+// ─── Customer Management ─────
+
+/**
+ * Enterprise customers = subscription where plan code = 'ENTERPRISE'
+ */
+const getEnterpriseCustomers = async (req, res) => {
+  try {
+    const { search, status, page = 1, limit = 15 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    let where = `u.role = 'TEACHER' AND u.is_deleted = FALSE`;
+    const params = [];
+
+    if (search) {
+      where += ` AND (u.email LIKE ? OR p.name LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    if (status && status !== 'all') {
+      where += ` AND u.status = ?`;
+      params.push(status);
+    }
+
+    const [customers] = await db.query(
+      `SELECT
+        u.id, u.email, u.status, u.created_at,
+        p.name, p.avatar_url,
+        ANY_VALUE(sp.name) AS plan_name, ANY_VALUE(sp.price) AS plan_price,
+        ANY_VALUE(s.start_date) AS start_date, ANY_VALUE(s.end_date) AS end_date,
+        ANY_VALUE(s.status) AS subscription_status,
+        (SELECT COUNT(*) FROM quizzes q WHERE q.teacher_id = u.id AND q.is_deleted = FALSE) AS quizzes_count,
+        (SELECT COUNT(*) FROM classrooms c WHERE c.teacher_id = u.id) AS classrooms_count
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       INNER JOIN subscriptions s ON u.id = s.user_id AND s.status = 'active'
+       INNER JOIN subscription_plans sp ON s.plan_id = sp.id AND sp.code = 'ENTERPRISE'
+       WHERE ${where}
+       GROUP BY u.id, u.email, u.status, u.created_at, p.name, p.avatar_url
+       ORDER BY u.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limitNum, offset]
+    );
+
+    const [countResult] = await db.query(
+      `SELECT COUNT(*) AS total
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE ${where}
+       AND EXISTS (
+         SELECT 1 FROM subscriptions s
+         JOIN subscription_plans sp ON s.plan_id = sp.id
+         WHERE s.user_id = u.id AND s.status = 'active' AND sp.code = 'ENTERPRISE'
+       )`,
+      params
+    );
+
+    res.json({
+      success: true,
+      data: customers,
+      total: parseInt(countResult[0].total),
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(parseInt(countResult[0].total) / limitNum)
+    });
+  } catch (error) {
+    console.error('getEnterpriseCustomers error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi khi tải danh sách khách hàng doanh nghiệp', error: error.message });
+  }
+};
+
+/**
+ * Individual customers = users WITHOUT an active ENTERPRISE subscription
+ */
+const getIndividualCustomers = async (req, res) => {
+  try {
+    const { search, status, page = 1, limit = 15 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    let where = `u.role = 'TEACHER' AND u.is_deleted = FALSE`;
+    const params = [];
+
+    if (search) {
+      where += ` AND (u.email LIKE ? OR p.name LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    if (status && status !== 'all') {
+      where += ` AND u.status = ?`;
+      params.push(status);
+    }
+
+    const [customers] = await db.query(
+      `SELECT
+        u.id, u.email, u.status, u.created_at,
+        p.name, p.avatar_url,
+        (SELECT COUNT(*) FROM quizzes q WHERE q.teacher_id = u.id AND q.is_deleted = FALSE) AS quizzes_count,
+        (SELECT COUNT(*) FROM classrooms c WHERE c.teacher_id = u.id) AS classrooms_count
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE ${where}
+       AND NOT EXISTS (
+         SELECT 1 FROM subscriptions s
+         JOIN subscription_plans sp ON s.plan_id = sp.id
+         WHERE s.user_id = u.id AND s.status = 'active' AND sp.code = 'ENTERPRISE'
+       )
+       ORDER BY u.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limitNum, offset]
+    );
+
+    const [countResult] = await db.query(
+      `SELECT COUNT(*) AS total
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       WHERE ${where}
+       AND NOT EXISTS (
+         SELECT 1 FROM subscriptions s
+         JOIN subscription_plans sp ON s.plan_id = sp.id
+         WHERE s.user_id = u.id AND s.status = 'active' AND sp.code = 'ENTERPRISE'
+       )`,
+      params
+    );
+
+    res.json({
+      success: true,
+      data: customers,
+      total: parseInt(countResult[0].total),
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(parseInt(countResult[0].total) / limitNum)
+    });
+  } catch (error) {
+    console.error('getIndividualCustomers error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi khi tải danh sách khách hàng cá nhân', error: error.message });
+  }
+};
+
+const getCustomerDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [rows] = await db.query(
+      `SELECT
+        u.id, u.email, u.status, u.created_at,
+        p.name, p.avatar_url, p.address,
+        ANY_VALUE(sp.name) AS plan_name, ANY_VALUE(sp.price) AS plan_price,
+        ANY_VALUE(s.start_date) AS start_date, ANY_VALUE(s.end_date) AS end_date,
+        ANY_VALUE(s.status) AS subscription_status,
+        (SELECT COUNT(*) FROM quizzes q WHERE q.teacher_id = u.id AND q.is_deleted = FALSE) AS quizzes_count,
+        (SELECT COUNT(*) FROM classrooms c WHERE c.teacher_id = u.id) AS classrooms_count,
+        (SELECT COUNT(DISTINCT cs.student_id) FROM classrooms c JOIN classroom_students cs ON c.id = cs.classroom_id WHERE c.teacher_id = u.id) AS students_count
+       FROM users u
+       LEFT JOIN user_profiles p ON u.id = p.user_id
+       LEFT JOIN subscriptions s ON u.id = s.user_id AND s.status = 'active'
+       LEFT JOIN subscription_plans sp ON s.plan_id = sp.id
+       WHERE u.id = ? AND u.is_deleted = FALSE
+       GROUP BY u.id, u.email, u.status, u.created_at, p.name, p.avatar_url, p.address`,
+      [id]
+    );
+
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Không tìm thấy khách hàng' });
+
+    res.json({ success: true, data: rows[0] });
+  } catch (error) {
+    console.error('getCustomerDetail error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi khi tải thông tin khách hàng', error: error.message });
+  }
+};
+
+const toggleLockCustomer = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [rows] = await db.query(
+      `SELECT id, status FROM users WHERE id = ? AND is_deleted = FALSE`,
+      [id]
+    );
+    if (!rows[0]) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
+
+    const newStatus = rows[0].status === 'locked' ? 'active' : 'locked';
+    await db.query(`UPDATE users SET status = ? WHERE id = ?`, [newStatus, id]);
+
+    res.json({ success: true, message: newStatus === 'locked' ? 'Đã khoá tài khoản' : 'Đã mở khoá tài khoản', status: newStatus });
+  } catch (error) {
+    console.error('toggleLockCustomer error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi khi thực hiện thao tác', error: error.message });
+  }
+};
+
+/**
+ * Create enterprise customer
+ */
+const createEnterpriseCustomer = async (req, res) => {
+  try {
+    const { email, name, plan_id, password } = req.body;
+    if (!email || !plan_id || !password) {
+      return res.status(400).json({ success: false, message: 'email, password và plan_id là bắt buộc' });
+    }
+
+    const bcrypt = require('bcryptjs');
+    const { v7: uuidv7 } = require('uuid');
+
+    // Check email exists
+    const [existing] = await db.query(`SELECT id FROM users WHERE email = ?`, [email]);
+    if (existing[0]) return res.status(409).json({ success: false, message: 'Email đã tồn tại' });
+
+    const userId = uuidv7();
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await db.query(
+      `INSERT INTO users (id, email, password_hash, role, is_verified) VALUES (?, ?, ?, 'TEACHER', TRUE)`,
+      [userId, email, hashedPassword]
+    );
+
+    if (name) {
+      await db.query(
+        `INSERT INTO user_profiles (user_id, name) VALUES (?, ?)`,
+        [userId, name]
+      );
+    }
+
+    const subId = uuidv7();
+    await db.query(
+      `INSERT INTO subscriptions (id, user_id, plan_id, status, start_date) VALUES (?, ?, ?, 'active', CURDATE())`,
+      [subId, userId, plan_id]
+    );
+
+    res.status(201).json({ success: true, message: 'Tạo khách hàng doanh nghiệp thành công', data: { id: userId, email, name } });
+  } catch (error) {
+    console.error('createEnterpriseCustomer error:', error);
+    res.status(500).json({ success: false, message: 'Lỗi khi tạo khách hàng', error: error.message });
+  }
+};
+
 module.exports = {
   getRevenueMetrics,
   getActiveCustomers,
@@ -743,5 +979,10 @@ module.exports = {
   getExamsCreated,
   getDashboardSummary,
   getRevenueChart,
-  getUserGrowthChart
+  getUserGrowthChart,
+  getEnterpriseCustomers,
+  getIndividualCustomers,
+  getCustomerDetail,
+  toggleLockCustomer,
+  createEnterpriseCustomer
 };

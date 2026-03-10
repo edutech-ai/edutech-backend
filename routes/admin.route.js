@@ -10,7 +10,12 @@ const {
   getExamsCreated,
   getDashboardSummary,
   getRevenueChart,
-  getUserGrowthChart
+  getUserGrowthChart,
+  getEnterpriseCustomers,
+  getIndividualCustomers,
+  getCustomerDetail,
+  toggleLockCustomer,
+  createEnterpriseCustomer
 } = require('../controllers/admin.controller');
 
 /**
@@ -308,5 +313,144 @@ router.get('/dashboard/revenue-chart', authenticate, authorizeAdmin, getRevenueC
  *         description: Forbidden - Admin access required
  */
 router.get('/dashboard/user-growth-chart', authenticate, authorizeAdmin, getUserGrowthChart);
+
+/**
+ * @swagger
+ * tags:
+ *   name: Admin Customers
+ *   description: Admin customer management
+ */
+
+/**
+ * @swagger
+ * /api/v1/admin/customers/enterprise:
+ *   get:
+ *     summary: Get enterprise customers (teachers with active subscription)
+ *     tags: [Admin Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: Enterprise customers retrieved successfully
+ *   post:
+ *     summary: Create an enterprise customer account
+ *     tags: [Admin Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password, plan_id]
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               plan_id:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Customer created successfully
+ */
+router.get('/customers/enterprise', authenticate, authorizeAdmin, getEnterpriseCustomers);
+router.post('/customers/enterprise', authenticate, authorizeAdmin, createEnterpriseCustomer);
+
+/**
+ * @swagger
+ * /api/v1/admin/customers/individual:
+ *   get:
+ *     summary: Get individual customers (teachers without active subscription)
+ *     tags: [Admin Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: Individual customers retrieved successfully
+ */
+router.get('/customers/individual', authenticate, authorizeAdmin, getIndividualCustomers);
+
+/**
+ * @swagger
+ * /api/v1/admin/customers/{id}:
+ *   get:
+ *     summary: Get customer detail with stats
+ *     tags: [Admin Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Customer detail retrieved successfully
+ *       404:
+ *         description: Customer not found
+ *
+ * /api/v1/admin/customers/{id}/lock:
+ *   patch:
+ *     summary: Toggle lock/unlock customer account
+ *     tags: [Admin Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Account lock status toggled
+ *       404:
+ *         description: Customer not found
+ */
+router.get('/customers/:id', authenticate, authorizeAdmin, getCustomerDetail);
+router.patch('/customers/:id/lock', authenticate, authorizeAdmin, toggleLockCustomer);
 
 module.exports = router;
