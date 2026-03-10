@@ -78,6 +78,21 @@ class FeatureRequest {
     }
   }
 
+  static async update(id, { title, description }) {
+    const fields = [];
+    const params = [];
+    if (title !== undefined) { fields.push('title = ?'); params.push(title); }
+    if (description !== undefined) { fields.push('description = ?'); params.push(description); }
+    if (fields.length === 0) return this.findById(id);
+    params.push(id);
+    await db.execute(`UPDATE feature_requests SET ${fields.join(', ')} WHERE id = ?`, params);
+    return this.findById(id);
+  }
+
+  static async delete(id) {
+    await db.execute(`DELETE FROM feature_requests WHERE id = ?`, [id]);
+  }
+
   static async updateStatus(id, status) {
     const query = `UPDATE feature_requests SET status = ? WHERE id = ?`;
     await db.execute(query, [status, id]);

@@ -1,19 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
 const { body } = require('express-validator');
 const { authenticate, authenticateOptional } = require('../middlewares/auth');
 const ReportController = require('../controllers/report.controller');
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Chỉ hỗ trợ ảnh (JPG, PNG, WEBP) hoặc video (MP4, MOV)'), false);
-  },
-});
 
 const bugReportValidation = [
   body('title').trim().notEmpty().withMessage('Tiêu đề không được để trống').isLength({ max: 100 }).withMessage('Tiêu đề tối đa 100 ký tự'),
@@ -179,7 +168,9 @@ router.get('/bugs', authenticateOptional, ReportController.getBugReports);
  *       500:
  *         description: Lỗi server
  */
-router.post('/bugs', authenticate, upload.array('attachments', 5), bugReportValidation, ReportController.createBugReport);
+router.post('/bugs', authenticate, bugReportValidation, ReportController.createBugReport);
+router.put('/bugs/:id', authenticate, bugReportValidation, ReportController.updateBugReport);
+router.delete('/bugs/:id', authenticate, ReportController.deleteBugReport);
 
 // ─── Feature Requests ────────────────────────────────────────
 
@@ -322,6 +313,8 @@ router.get('/features', authenticateOptional, ReportController.getFeatureRequest
  *         description: Lỗi server
  */
 router.post('/features', authenticate, featureRequestValidation, ReportController.createFeatureRequest);
+router.put('/features/:id', authenticate, featureRequestValidation, ReportController.updateFeatureRequest);
+router.delete('/features/:id', authenticate, ReportController.deleteFeatureRequest);
 
 /**
  * @swagger

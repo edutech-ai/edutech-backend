@@ -64,6 +64,22 @@ class BugReport {
     };
   }
 
+  static async update(id, { title, description, attachments }) {
+    const fields = [];
+    const params = [];
+    if (title !== undefined) { fields.push('title = ?'); params.push(title); }
+    if (description !== undefined) { fields.push('description = ?'); params.push(description); }
+    if (attachments !== undefined) { fields.push('attachments = ?'); params.push(JSON.stringify(attachments)); }
+    if (fields.length === 0) return this.findById(id);
+    params.push(id);
+    await db.execute(`UPDATE bug_reports SET ${fields.join(', ')} WHERE id = ?`, params);
+    return this.findById(id);
+  }
+
+  static async delete(id) {
+    await db.execute(`DELETE FROM bug_reports WHERE id = ?`, [id]);
+  }
+
   static async updateStatus(id, status) {
     const query = `UPDATE bug_reports SET status = ? WHERE id = ?`;
     await db.execute(query, [status, id]);
@@ -73,7 +89,9 @@ class BugReport {
   static _format(row, requestUserId) {
     return {
       ...row,
-      attachments: row.attachments ? JSON.parse(row.attachments) : [],
+      attachments: typeof row.attachments === 'string'
+        ? JSON.parse(row.attachments)
+        : (row.attachments || []),
       is_own: requestUserId ? row.user_id === requestUserId : false,
     };
   }
