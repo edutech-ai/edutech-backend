@@ -7,7 +7,7 @@ const ReportController = require('../controllers/report.controller');
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB per file
+  limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'];
     if (allowed.includes(file.mimetype)) cb(null, true);
@@ -28,5 +28,10 @@ const featureRequestValidation = [
 // ─── Bug Reports ─────────────────────────────────────────────
 router.get('/bugs', authenticateOptional, ReportController.getBugReports);
 router.post('/bugs', authenticate, upload.array('attachments', 5), bugReportValidation, ReportController.createBugReport);
+
+// ─── Feature Requests ────────────────────────────────────────
+router.get('/features', authenticateOptional, ReportController.getFeatureRequests);
+router.post('/features', authenticate, featureRequestValidation, ReportController.createFeatureRequest);
+router.post('/features/:id/like', authenticate, ReportController.toggleLike);
 
 module.exports = router;
