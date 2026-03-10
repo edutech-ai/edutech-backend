@@ -1,19 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
 const { body } = require('express-validator');
 const { authenticate, authenticateOptional } = require('../middlewares/auth');
 const ReportController = require('../controllers/report.controller');
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'];
-    if (allowed.includes(file.mimetype)) cb(null, true);
-    else cb(new Error('Chỉ hỗ trợ ảnh (JPG, PNG, WEBP) hoặc video (MP4, MOV)'), false);
-  },
-});
 
 const bugReportValidation = [
   body('title').trim().notEmpty().withMessage('Tiêu đề không được để trống').isLength({ max: 100 }).withMessage('Tiêu đề tối đa 100 ký tự'),
@@ -179,7 +168,79 @@ router.get('/bugs', authenticateOptional, ReportController.getBugReports);
  *       500:
  *         description: Lỗi server
  */
-router.post('/bugs', authenticate, upload.array('attachments', 5), bugReportValidation, ReportController.createBugReport);
+router.post('/bugs', authenticate, bugReportValidation, ReportController.createBugReport);
+
+/**
+ * @swagger
+ * /api/v1/reports/bugs/{id}:
+ *   put:
+ *     summary: Cập nhật báo cáo lỗi (chỉ chủ sở hữu)
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của báo cáo lỗi
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 maxLength: 100
+ *               description:
+ *                 type: string
+ *                 maxLength: 2000
+ *               attachments:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Cập nhật thành công
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *       401:
+ *         description: Chưa đăng nhập
+ *       403:
+ *         description: Không có quyền chỉnh sửa
+ *       404:
+ *         description: Không tìm thấy báo cáo
+ *       500:
+ *         description: Lỗi server
+ *   delete:
+ *     summary: Xoá báo cáo lỗi (chỉ chủ sở hữu)
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của báo cáo lỗi
+ *     responses:
+ *       200:
+ *         description: Xoá thành công
+ *       401:
+ *         description: Chưa đăng nhập
+ *       403:
+ *         description: Không có quyền xoá
+ *       404:
+ *         description: Không tìm thấy báo cáo
+ *       500:
+ *         description: Lỗi server
+ */
+router.put('/bugs/:id', authenticate, bugReportValidation, ReportController.updateBugReport);
+router.delete('/bugs/:id', authenticate, ReportController.deleteBugReport);
 
 // ─── Feature Requests ────────────────────────────────────────
 
@@ -322,6 +383,74 @@ router.get('/features', authenticateOptional, ReportController.getFeatureRequest
  *         description: Lỗi server
  */
 router.post('/features', authenticate, featureRequestValidation, ReportController.createFeatureRequest);
+
+/**
+ * @swagger
+ * /api/v1/reports/features/{id}:
+ *   put:
+ *     summary: Cập nhật đề xuất tính năng (chỉ chủ sở hữu)
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của đề xuất tính năng
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 maxLength: 100
+ *               description:
+ *                 type: string
+ *                 maxLength: 500
+ *     responses:
+ *       200:
+ *         description: Cập nhật thành công
+ *       400:
+ *         description: Dữ liệu không hợp lệ
+ *       401:
+ *         description: Chưa đăng nhập
+ *       403:
+ *         description: Không có quyền chỉnh sửa
+ *       404:
+ *         description: Không tìm thấy đề xuất
+ *       500:
+ *         description: Lỗi server
+ *   delete:
+ *     summary: Xoá đề xuất tính năng (chỉ chủ sở hữu)
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID của đề xuất tính năng
+ *     responses:
+ *       200:
+ *         description: Xoá thành công
+ *       401:
+ *         description: Chưa đăng nhập
+ *       403:
+ *         description: Không có quyền xoá
+ *       404:
+ *         description: Không tìm thấy đề xuất
+ *       500:
+ *         description: Lỗi server
+ */
+router.put('/features/:id', authenticate, featureRequestValidation, ReportController.updateFeatureRequest);
+router.delete('/features/:id', authenticate, ReportController.deleteFeatureRequest);
 
 /**
  * @swagger
