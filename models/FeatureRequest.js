@@ -12,9 +12,10 @@ class FeatureRequest {
 
   static async findById(id, requestUserId = null) {
     const query = `
-      SELECT fr.*, u.name as author_name, u.avatar_url
+      SELECT fr.*, p.name as author_name, p.avatar_url
       FROM feature_requests fr
       JOIN users u ON fr.user_id = u.id
+      LEFT JOIN user_profiles p ON p.user_id = u.id
       WHERE fr.id = ?
     `;
     const [rows] = await db.execute(query, [id]);
@@ -37,19 +38,19 @@ class FeatureRequest {
     }
 
     const query = `
-      SELECT fr.*, u.name as author_name, u.avatar_url
+      SELECT fr.*, p.name as author_name, p.avatar_url
       FROM feature_requests fr
       JOIN users u ON fr.user_id = u.id
+      LEFT JOIN user_profiles p ON p.user_id = u.id
       WHERE ${where}
       ORDER BY fr.likes_count DESC, fr.created_at DESC
-      LIMIT ? OFFSET ?
+      LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
     `;
-    params.push(limit, offset);
 
     const [rows] = await db.execute(query, params);
 
     const countQuery = `SELECT COUNT(*) as total FROM feature_requests fr WHERE ${where}`;
-    const [countRows] = await db.execute(countQuery, params.slice(0, -2));
+    const [countRows] = await db.execute(countQuery, params);
     const total = countRows[0].total;
 
     const formatted = await Promise.all(
