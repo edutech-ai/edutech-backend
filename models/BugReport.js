@@ -17,9 +17,10 @@ class BugReport {
 
   static async findById(id, requestUserId = null) {
     const query = `
-      SELECT br.*, u.name as author_name, u.avatar_url
+      SELECT br.*, p.name as author_name, p.avatar_url
       FROM bug_reports br
       JOIN users u ON br.user_id = u.id
+      LEFT JOIN user_profiles p ON p.user_id = u.id
       WHERE br.id = ?
     `;
     const [rows] = await db.execute(query, [id]);
@@ -42,25 +43,41 @@ class BugReport {
     }
 
     const query = `
-      SELECT br.*, u.name as author_name, u.avatar_url
+      SELECT br.*, p.name as author_name, p.avatar_url
       FROM bug_reports br
       JOIN users u ON br.user_id = u.id
+      LEFT JOIN user_profiles p ON p.user_id = u.id
       WHERE ${where}
       ORDER BY br.created_at DESC
-      LIMIT ? OFFSET ?
+      LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
     `;
-    params.push(limit, offset);
 
     const [rows] = await db.execute(query, params);
 
     const countQuery = `SELECT COUNT(*) as total FROM bug_reports br WHERE ${where}`;
-    const [countRows] = await db.execute(countQuery, params.slice(0, -2));
+    const [countRows] = await db.execute(countQuery, params);
     const total = countRows[0].total;
 
     return {
       data: rows.map((r) => this._format(r, requestUserId)),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
+  }
+
+  static async update(id, { title, description, attachments }) {
+    const fields = [];
+    const params = [];
+    if (title !== undefined) { fields.push('title = ?'); params.push(title); }
+    if (description !== undefined) { fields.push('description = ?'); params.push(description); }
+    if (attachments !== undefined) { fields.push('attachments = ?'); params.push(JSON.stringify(attachments)); }
+    if (fields.length === 0) return this.findById(id);
+    params.push(id);
+    await db.execute(`UPDATE bug_reports SET ${fields.join(', ')} WHERE id = ?`, params);
+    return this.findById(id);
+  }
+
+  static async delete(id) {
+    await db.execute(`DELETE FROM bug_reports WHERE id = ?`, [id]);
   }
 
   static async updateStatus(id, status) {
@@ -72,7 +89,9 @@ class BugReport {
   static _format(row, requestUserId) {
     return {
       ...row,
-      attachments: row.attachments ? JSON.parse(row.attachments) : [],
+      attachments: typeof row.attachments === 'string'
+        ? JSON.parse(row.attachments)
+        : (row.attachments || []),
       is_own: requestUserId ? row.user_id === requestUserId : false,
     };
   }

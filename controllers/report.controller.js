@@ -1,5 +1,4 @@
 const { validationResult } = require('express-validator');
-const cloudinary = require('../config/cloudinary');
 const BugReport = require('../models/BugReport');
 const FeatureRequest = require('../models/FeatureRequest');
 
@@ -34,31 +33,8 @@ class ReportController {
         return res.status(400).json({ success: false, message: 'Dữ liệu không hợp lệ', errors: errors.array() });
       }
 
-      const { title, description } = req.body;
+      const { title, description, attachments = [] } = req.body;
       const user_id = req.user.id;
-      const attachments = [];
-
-      // Upload files to Cloudinary if any
-      if (req.files && req.files.length > 0) {
-        const uploadPromises = req.files.map((file) =>
-          new Promise((resolve, reject) => {
-            const stream = cloudinary.uploader.upload_stream(
-              {
-                folder: `edutech/bug-reports/${user_id}`,
-                resource_type: 'auto',
-                public_id: `${Date.now()}_${file.originalname.replace(/\s/g, '_')}`,
-              },
-              (error, result) => {
-                if (error) return reject(error);
-                resolve({ url: result.secure_url, cloudinary_id: result.public_id, resource_type: result.resource_type });
-              }
-            );
-            stream.end(file.buffer);
-          })
-        );
-        const uploaded = await Promise.all(uploadPromises);
-        attachments.push(...uploaded.map((u) => u.url));
-      }
 
       const report = await BugReport.create({ user_id, title, description, attachments });
 
@@ -66,6 +42,37 @@ class ReportController {
     } catch (error) {
       console.error('createBugReport error:', error);
       res.status(500).json({ success: false, message: 'Lỗi khi gửi báo cáo', error: error.message });
+    }
+  }
+
+  static async updateBugReport(req, res) {
+    try {
+      const { id } = req.params;
+      const report = await BugReport.findById(parseInt(id), req.user.id);
+      if (!report) return res.status(404).json({ success: false, message: 'Không tìm thấy báo cáo' });
+      if (report.user_id !== req.user.id) return res.status(403).json({ success: false, message: 'Không có quyền chỉnh sửa' });
+
+      const { title, description, attachments } = req.body;
+      const updated = await BugReport.update(parseInt(id), { title, description, attachments });
+      res.json({ success: true, data: updated });
+    } catch (error) {
+      console.error('updateBugReport error:', error);
+      res.status(500).json({ success: false, message: 'Lỗi khi cập nhật báo cáo', error: error.message });
+    }
+  }
+
+  static async deleteBugReport(req, res) {
+    try {
+      const { id } = req.params;
+      const report = await BugReport.findById(parseInt(id), req.user.id);
+      if (!report) return res.status(404).json({ success: false, message: 'Không tìm thấy báo cáo' });
+      if (report.user_id !== req.user.id) return res.status(403).json({ success: false, message: 'Không có quyền xoá' });
+
+      await BugReport.delete(parseInt(id));
+      res.json({ success: true, message: 'Đã xoá báo cáo' });
+    } catch (error) {
+      console.error('deleteBugReport error:', error);
+      res.status(500).json({ success: false, message: 'Lỗi khi xoá báo cáo', error: error.message });
     }
   }
 
@@ -106,6 +113,37 @@ class ReportController {
     } catch (error) {
       console.error('createFeatureRequest error:', error);
       res.status(500).json({ success: false, message: 'Lỗi khi gửi đề xuất', error: error.message });
+    }
+  }
+
+  static async updateFeatureRequest(req, res) {
+    try {
+      const { id } = req.params;
+      const request = await FeatureRequest.findById(parseInt(id), req.user.id);
+      if (!request) return res.status(404).json({ success: false, message: 'Không tìm thấy đề xuất' });
+      if (request.user_id !== req.user.id) return res.status(403).json({ success: false, message: 'Không có quyền chỉnh sửa' });
+
+      const { title, description } = req.body;
+      const updated = await FeatureRequest.update(parseInt(id), { title, description });
+      res.json({ success: true, data: updated });
+    } catch (error) {
+      console.error('updateFeatureRequest error:', error);
+      res.status(500).json({ success: false, message: 'Lỗi khi cập nhật đề xuất', error: error.message });
+    }
+  }
+
+  static async deleteFeatureRequest(req, res) {
+    try {
+      const { id } = req.params;
+      const request = await FeatureRequest.findById(parseInt(id), req.user.id);
+      if (!request) return res.status(404).json({ success: false, message: 'Không tìm thấy đề xuất' });
+      if (request.user_id !== req.user.id) return res.status(403).json({ success: false, message: 'Không có quyền xoá' });
+
+      await FeatureRequest.delete(parseInt(id));
+      res.json({ success: true, message: 'Đã xoá đề xuất' });
+    } catch (error) {
+      console.error('deleteFeatureRequest error:', error);
+      res.status(500).json({ success: false, message: 'Lỗi khi xoá đề xuất', error: error.message });
     }
   }
 
