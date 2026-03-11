@@ -13,6 +13,9 @@ module.exports = {
   // Bot for prompt validation
   promptBotId: process.env.COZE_BOT_VALIDATION_ID,
 
+  // Bot for converting exam PDF to quiz
+  convertBotId: process.env.COZE_BOT_CONVERT_ID,
+
   defaultUserId: process.env.COZE_DEFAULT_USER_ID || 'edutech_system',
   timeout: parseInt(process.env.COZE_TIMEOUT) || 60000,
   maxRetries: parseInt(process.env.COZE_MAX_RETRIES) || 3,

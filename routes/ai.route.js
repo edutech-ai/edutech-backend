@@ -229,4 +229,121 @@ router.post(
   AIController.analyzeQuiz
 );
 
+/**
+ * @swagger
+ * /api/v1/ai/convert-exam:
+ *   post:
+ *     summary: Chuyển đổi đề thi PDF thành quiz trong hệ thống
+ *     description: |
+ *       Upload file đề thi (PDF, DOCX, v.v.) lên Coze AI để nhận dạng và chuyển đổi thành quiz.
+ *       File sẽ được lưu vào thư viện tài liệu của giáo viên đồng thời.
+ *       Giới hạn file: 5MB.
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: File đề thi (PDF, DOCX, ...) tối đa 5MB
+ *               title:
+ *                 type: string
+ *                 description: Tên đề thi (nếu không điền sẽ lấy từ tên file)
+ *               subject:
+ *                 type: string
+ *                 example: "Toán"
+ *               grade:
+ *                 type: integer
+ *                 example: 10
+ *               duration:
+ *                 type: integer
+ *                 description: Thời gian làm bài (phút), nếu không điền AI sẽ tự phát hiện
+ *     responses:
+ *       201:
+ *         description: Chuyển đổi thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Chuyển đổi thành công 5 câu hỏi từ đề thi"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     quiz:
+ *                       type: object
+ *                       description: Quiz đã tạo với đầy đủ thông tin
+ *                     document:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         file_url:
+ *                           type: string
+ *                     conversionInfo:
+ *                       type: object
+ *                       properties:
+ *                         total_questions:
+ *                           type: integer
+ *                         total_score:
+ *                           type: number
+ *                         total_minutes:
+ *                           type: integer
+ *       400:
+ *         description: Không có file hoặc file quá lớn
+ *       502:
+ *         description: Upload file lên AI thất bại
+ *       500:
+ *         description: Chuyển đổi thất bại
+ */
+router.post(
+  '/convert-exam',
+  authenticate,
+  checkQuizQuota,
+  AIController.convertExamFromPDF
+);
+
+/**
+ * @swagger
+ * /api/v1/ai/convert-exam/raw:
+ *   post:
+ *     summary: "DEBUG - Xem raw response từ AI khi convert đề thi"
+ *     description: Upload file và trả về đúng JSON thô mà AI trả ra, không lưu vào DB. Dùng để kiểm tra AI có đọc đúng file không.
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ */
+router.post(
+  '/convert-exam/raw',
+  authenticate,
+  AIController.convertExamRaw
+);
+
 module.exports = router;
