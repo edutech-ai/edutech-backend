@@ -318,32 +318,32 @@ router.post(
   AIController.convertExamFromPDF
 );
 
-/**
- * @swagger
- * /api/v1/ai/convert-exam/raw:
- *   post:
- *     summary: "DEBUG - Xem raw response từ AI khi convert đề thi"
- *     description: Upload file và trả về đúng JSON thô mà AI trả ra, không lưu vào DB. Dùng để kiểm tra AI có đọc đúng file không.
- *     tags: [AI]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             required:
- *               - file
- *             properties:
- *               file:
- *                 type: string
- *                 format: binary
- */
-router.post(
-  '/convert-exam/raw',
-  authenticate,
-  AIController.convertExamRaw
-);
+// /**
+//  * @swagger
+//  * /api/v1/ai/convert-exam/raw:
+//  *   post:
+//  *     summary: "DEBUG - Xem raw response từ AI khi convert đề thi"
+//  *     description: Upload file và trả về đúng JSON thô mà AI trả ra, không lưu vào DB. Dùng để kiểm tra AI có đọc đúng file không.
+//  *     tags: [AI]
+//  *     security:
+//  *       - bearerAuth: []
+//  *     requestBody:
+//  *       required: true
+//  *       content:
+//  *         multipart/form-data:
+//  *           schema:
+//  *             type: object
+//  *             required:
+//  *               - file
+//  *             properties:
+//  *               file:
+//  *                 type: string
+//  *                 format: binary
+//  */
+// router.post(
+//   '/convert-exam/raw',
+//   authenticate,
+//   AIController.convertExamRaw
+// );
 
 module.exports = router;
