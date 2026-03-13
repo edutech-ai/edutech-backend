@@ -1,6 +1,10 @@
 const cozeService = require('../services/coze.service');
 const Quiz = require('../models/Quiz');
 const Question = require('../models/Question');
+const Document = require('../models/Document');
+const { uploadToCloudinary, getFileType } = require('../utils/cloudinary');
+const QuizNormalizer = require('../utils/quizNormalizer');
+const fs = require('fs');
 const { validationResult } = require('express-validator');
 
 class AIController {
@@ -135,6 +139,157 @@ class AIController {
       });
     }
   }
+
+  /**
+   * Convert exam PDF to quiz using AI
+   * POST /api/v1/ai/convert-exam
+   */
+  static async convertExamFromPDF(req, res) {
+    try {
+      const uploadedFile = req.files?.file;
+      if (!uploadedFile) {
+        return res.status(400).json({ success: false, message: 'Vui lòng upload file đề thi' });
+      }
+
+      const file = Array.isArray(uploadedFile) ? uploadedFile[0] : uploadedFile;
+
+      // 5MB limit (Coze constraint)
+      if (file.size > 5 * 1024 * 1024) {
+        return res.status(400).json({ success: false, message: 'File quá lớn, tối đa 5MB' });
+      }
+
+      const { title, subject, grade, duration } = req.body;
+      const teacherId = req.user.id;
+
+      const fileBuffer = fs.readFileSync(file.tempFilePath);
+      const fileName = file.name;
+      const mimeType = file.mimetype;
+
+      // 1. Upload to Coze for AI processing
+      let cozeFile;
+      try {
+        cozeFile = await cozeService.uploadFileToCoze(fileBuffer, fileName, mimeType);
+      } catch (err) {
+        return res.status(502).json({ success: false, message: 'Upload file lên AI thất bại', error: err.message });
+      }
+
+      // 3. Convert via Coze AI (before Cloudinary to get subject/grade from AI)
+      const convertResult = await cozeService.convertExamFromFile(cozeFile.id);
+
+      if (!convertResult.success) {
+        return res.status(500).json({
+          success: false,
+          message: 'Chuyển đổi đề thi thất bại',
+          error: convertResult.error,
+          rawContent: convertResult.rawContent,
+        });
+      }
+
+      const cozeOutput = convertResult.data;
+
+      // Merge: user input takes priority, AI output as fallback
+      const resolvedSubject = subject || cozeOutput.subject || null;
+      const resolvedGrade = grade ? parseInt(grade) : (cozeOutput.grade ? parseInt(cozeOutput.grade) : null);
+
+      // 2. Upload to Cloudinary & save to documents library (root folder)
+      const cloudinaryResult = await uploadToCloudinary(fileBuffer, teacherId, fileName);
+      const document = await Document.create({
+        teacher_id: teacherId,
+        folder_id: null,
+        name: title || fileName.replace(/\.[^.]+$/, ''),
+        type: getFileType(mimeType),
+        file_url: cloudinaryResult.url,
+        cloudinary_id: cloudinaryResult.cloudinary_id,
+        file_size: cloudinaryResult.bytes,
+        mime_type: mimeType,
+        original_filename: fileName,
+        is_public: false,
+        subject: resolvedSubject,
+        grade: resolvedGrade,
+        tags: [],
+      });
+
+      // 4. Create quiz record
+      const quizTitle = title || cozeOutput.title || fileName.replace(/\.[^.]+$/, '');
+      const quizId = await Quiz.create({
+        teacher_id: teacherId,
+        title: quizTitle,
+        description: `Đề thi được chuyển đổi từ file: ${fileName}`,
+        subject: resolvedSubject,
+        grade: resolvedGrade,
+        duration: duration ? parseInt(duration) : (cozeOutput.total_minutes || null),
+        difficulty: 'medium',
+        status: 'draft',
+      });
+
+      // 5. Normalize and save questions
+      const normalized = QuizNormalizer.normalizeQuiz(cozeOutput, quizId);
+      if (normalized.questions.length > 0) {
+        await Question.bulkCreate(normalized.questions);
+      }
+
+      // 6. Get complete quiz with details
+      const quiz = await Quiz.findByIdWithDetails(quizId);
+
+      res.status(201).json({
+        success: true,
+        message: `Chuyển đổi thành công ${normalized.questions.length} câu hỏi từ đề thi`,
+        data: {
+          quiz,
+          document: {
+            id: document.id,
+            name: document.name,
+            file_url: document.file_url,
+          },
+          conversionInfo: {
+            total_questions: cozeOutput.total_questions,
+            total_score: cozeOutput.total_score,
+            total_minutes: cozeOutput.total_minutes,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('convertExamFromPDF error:', error);
+      res.status(500).json({ success: false, message: 'Chuyển đổi đề thi thất bại', error: error.message });
+    }
+  }
+
+  /**
+   * [DEBUG] Return raw AI response for exam conversion without saving to DB
+   */
+  // static async convertExamRaw(req, res) {
+  //   try {
+  //     const uploadedFile = req.files?.file;
+  //     if (!uploadedFile) {
+  //       return res.status(400).json({ success: false, message: 'Vui lòng upload file đề thi' });
+  //     }
+
+  //     const file = Array.isArray(uploadedFile) ? uploadedFile[0] : uploadedFile;
+  //     const fileBuffer = fs.readFileSync(file.tempFilePath);
+
+  //     // Upload to Coze
+  //     let cozeFile;
+  //     try {
+  //       cozeFile = await cozeService.uploadFileToCoze(fileBuffer, file.name, file.mimetype);
+  //     } catch (err) {
+  //       return res.status(502).json({ success: false, message: 'Upload file lên AI thất bại', error: err.message });
+  //     }
+
+  //     // Get raw response from AI
+  //     const convertResult = await cozeService.convertExamFromFile(cozeFile.id);
+
+  //     res.json({
+  //       success: convertResult.success,
+  //       cozeFileId: cozeFile.id,
+  //       rawContent: convertResult.data || null,
+  //       error: convertResult.error || null,
+  //       unparsedContent: convertResult.rawContent || null,
+  //     });
+  //   } catch (error) {
+  //     console.error('convertExamRaw error:', error);
+  //     res.status(500).json({ success: false, error: error.message });
+  //   }
+  // }
 
   /**
    * Analyze quiz quality using AI

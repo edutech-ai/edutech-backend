@@ -252,6 +252,92 @@ Trả về dưới dạng JSON với cấu trúc:
     }
   }
 
+  async uploadFileToCoze(fileBuffer, fileName, mimeType) {
+    const formData = new FormData();
+    const blob = new Blob([fileBuffer], { type: mimeType });
+    formData.append('file', blob, fileName);
+
+    const response = await fetch(`${cozeConfig.apiUrl}/v1/files/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${cozeConfig.accessToken}`,
+      },
+      body: formData,
+    });
+
+    const result = await response.json();
+    if (result.code !== 0) {
+      throw new Error(result.msg || 'Failed to upload file to Coze');
+    }
+    return result.data;
+  }
+
+  /**
+   * Convert exam PDF (by file_id) to structured quiz JSON
+   * @param {string} fileId - Coze file ID from uploadFileToCoze
+   * @returns {Object} { success, data (parsed JSON), chatId, conversationId }
+   */
+  async convertExamFromFile(fileId) {
+    try {
+      const chatRes = await this.client.post('/v3/chat', {
+        bot_id: cozeConfig.convertBotId,
+        user_id: cozeConfig.defaultUserId,
+        additional_messages: [
+          {
+            role: 'user',
+            content_type: 'object_string',
+            content: JSON.stringify([{ type: 'file', file_id: fileId }]),
+          },
+        ],
+        stream: false,
+      });
+
+      if (chatRes.data.code !== 0 || !chatRes.data.data) {
+        throw new Error(chatRes.data.msg || 'Convert initialization failed');
+      }
+
+      const { id: chatId, conversation_id: conversationId } = chatRes.data.data;
+
+      // Poll until completed
+      let status = chatRes.data.data.status;
+      while (status === 'in_progress' || status === 'created') {
+        await new Promise(r => setTimeout(r, 1500));
+        const pollRes = await this.client.get('/v3/chat/retrieve', {
+          params: { conversation_id: conversationId, chat_id: chatId },
+        });
+
+        if (pollRes.data.code !== 0 || !pollRes.data.data) {
+          throw new Error(pollRes.data.msg || 'Convert polling failed');
+        }
+
+        status = pollRes.data.data.status;
+
+        if (status === 'failed') {
+          return { success: false, error: pollRes.data.data.last_error?.msg || 'Conversion failed' };
+        }
+      }
+
+      const msgRes = await this.client.get('/v3/chat/message/list', {
+        params: { conversation_id: conversationId, chat_id: chatId },
+      });
+
+      const answer = msgRes.data.data?.find(m => m.type === 'answer' && m.role === 'assistant');
+      if (!answer) {
+        return { success: false, error: 'No answer from AI' };
+      }
+
+      const parsed = QuizNormalizer.safeParseJSON(answer.content);
+      if (!parsed) {
+        return { success: false, error: 'Failed to parse JSON from AI', rawContent: answer.content };
+      }
+
+      return { success: true, data: parsed, chatId, conversationId };
+    } catch (error) {
+      console.error('Coze API Error (convertExamFromFile):', error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.msg || error.message };
+    }
+  }
+
   /**
    * Analyze quiz quality and provide feedback
    * @param {Object} quizData - Quiz data with questions

@@ -1,5 +1,4 @@
 const db = require('../config/database');
-const OMRAnswerMapper = require('../services/omrAnswerMapper.service');
 
 class AnswerKey {
   // Tạo đáp án chuẩn
@@ -29,15 +28,14 @@ class AnswerKey {
     return this.findById(result.insertId);
   }
 
-  // Tạo tự động từ questions trong quiz (SỬ DỤNG MAPPER)
+  // Tạo tự động từ questions trong quiz
   static async createFromQuiz(quiz_id, exam_code = null, created_by) {
-    // Sử dụng OMRAnswerMapper để map A/B/C/D
-    return await OMRAnswerMapper.createAndSaveAnswerKey(quiz_id, exam_code, created_by);
+    throw new Error('Chức năng OMR đã bị vô hiệu hóa');
   }
 
-  // Preview Answer Key trước khi tạo batch (để teacher kiểm tra)
+  // Preview Answer Key trước khi tạo batch
   static async preview(quiz_id) {
-    return await OMRAnswerMapper.previewAnswerKey(quiz_id);
+    throw new Error('Chức năng OMR đã bị vô hiệu hóa');
   }
 
   // Lấy answer key theo quiz_id và exam_code
