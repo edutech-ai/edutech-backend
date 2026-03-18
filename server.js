@@ -3,7 +3,6 @@ const http = require("http");
 const path = require("path");
 const session = require("express-session");
 const cors = require("cors");
-const fileUpload = require("express-fileupload");
 require("dotenv").config({ debug: false });
 
 const passport = require("./config/passport");
@@ -35,14 +34,6 @@ app.use(
 // Body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// File upload middleware
-app.use(fileUpload({
-  useTempFiles: true,
-  tempFileDir: path.join(__dirname, 'temp'),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max file size
-  abortOnLimit: true
-}));
 
 // Session middleware
 app.use(

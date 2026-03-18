@@ -3,11 +3,20 @@
  * Endpoints for AI-powered features via Coze integration
  */
 const express = require('express');
+const path = require('path');
+const fileUpload = require('express-fileupload');
 const router = express.Router();
 const AIController = require('../controllers/ai.controller');
 const { authenticate } = require('../middlewares/auth');
 const { checkQuizQuota, checkAdvancedAIAccess } = require('../middlewares/quota');
 const { createQuizWithQuestionsValidator } = require('../middlewares/ai.validator');
+
+const convertExamUpload = fileUpload({
+  useTempFiles: true,
+  tempFileDir: path.join(__dirname, '..', 'temp'),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  abortOnLimit: true
+});
 
 /**
  * @swagger
@@ -315,6 +324,7 @@ router.post(
   '/convert-exam',
   authenticate,
   checkQuizQuota,
+  convertExamUpload,
   AIController.convertExamFromPDF
 );
 
