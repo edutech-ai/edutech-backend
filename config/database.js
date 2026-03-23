@@ -14,9 +14,10 @@ const pool = mysql.createPool({
     connectionLimit: 10,
     waitForConnections: true,
     queueLimit: 0,
-    // Keep alive
-    keepAliveInitialDelay: 0,
-    enableKeepAlive: true
+    connectTimeout: 60000,        // 60s timeout khi tạo kết nối mới
+    // Keep alive — gửi TCP keepalive sau 30s idle để giữ connection sống
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 30000
 });
 
 // Set timezone for each connection
