@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { v7: uuidv7 } = require('uuid');
 const CHOICE_LETTERS = ['A', 'B', 'C', 'D', 'E'];
 
 class AnswerKey {
@@ -11,13 +12,15 @@ class AnswerKey {
     default_score_per_question = 0.2,
     created_by
   }) {
+    const keyId = uuidv7();
     const query = `
-      INSERT INTO answer_keys 
-      (quiz_id, exam_code, correct_answers, score_per_question, default_score_per_question, created_by)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO answer_keys
+      (id, quiz_id, exam_code, correct_answers, score_per_question, default_score_per_question, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
-    
-    const [result] = await db.execute(query, [
+
+    await db.execute(query, [
+      keyId,
       quiz_id,
       exam_code,
       JSON.stringify(correct_answers),
@@ -26,7 +29,7 @@ class AnswerKey {
       created_by
     ]);
 
-    return this.findById(result.insertId);
+    return this.findById(keyId);
   }
 
   // Tạo tự động từ questions trong quiz
