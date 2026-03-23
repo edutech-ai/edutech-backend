@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const classroomController = require('../controllers/classroom.controller');
+const scoreController = require('../controllers/score.controller');
 const classroomValidator = require('../middlewares/classroom.validator');
 const { authenticate } = require('../middlewares/auth');
 const { checkClassroomQuota } = require('../middlewares/quota');
@@ -653,5 +654,15 @@ router.get(
   authenticate,
   classroomController.getClassroomLeaderboard
 );
+
+// ============================================================
+// STUDENT SCORES ROUTES
+// ============================================================
+
+router.post('/:classroomId/scores', authenticate, scoreController.createScore);
+router.get('/:classroomId/scores', authenticate, scoreController.getClassroomScores);
+router.put('/:classroomId/scores/:scoreId', authenticate, scoreController.updateScore);
+router.delete('/:classroomId/scores/:scoreId', authenticate, scoreController.deleteScore);
+router.get('/:classroomId/students/:studentId/scores', authenticate, scoreController.getStudentScores);
 
 module.exports = router;
