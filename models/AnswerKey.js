@@ -90,8 +90,10 @@ class AnswerKey {
     if (rows.length === 0) return null;
     
     const answerKey = rows[0];
-    answerKey.correct_answers = JSON.parse(answerKey.correct_answers);
-    if (answerKey.score_per_question) {
+    if (typeof answerKey.correct_answers === 'string') {
+      answerKey.correct_answers = JSON.parse(answerKey.correct_answers);
+    }
+    if (answerKey.score_per_question && typeof answerKey.score_per_question === 'string') {
       answerKey.score_per_question = JSON.parse(answerKey.score_per_question);
     }
     return answerKey;
@@ -101,12 +103,14 @@ class AnswerKey {
   static async findById(id) {
     const query = 'SELECT * FROM answer_keys WHERE id = ?';
     const [rows] = await db.execute(query, [id]);
-    
+
     if (rows.length === 0) return null;
-    
+
     const answerKey = rows[0];
-    answerKey.correct_answers = JSON.parse(answerKey.correct_answers);
-    if (answerKey.score_per_question) {
+    if (typeof answerKey.correct_answers === 'string') {
+      answerKey.correct_answers = JSON.parse(answerKey.correct_answers);
+    }
+    if (answerKey.score_per_question && typeof answerKey.score_per_question === 'string') {
       answerKey.score_per_question = JSON.parse(answerKey.score_per_question);
     }
     return answerKey;

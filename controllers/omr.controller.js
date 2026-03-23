@@ -149,9 +149,12 @@ exports.createExamBatch = async (req, res) => {
     const batch = await ExamBatch.create({
       quiz_id,
       classroom_id,
+      template_id: null,
       name,
       description: description ?? null,
       batch_type: 'exam',
+      start_at: null,
+      end_at: null,
       created_by: teacherId,
     });
 
