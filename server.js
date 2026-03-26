@@ -108,6 +108,7 @@ app.use("/api/v1", require("./routes/performance.route"));
 app.use("/api/v1/ai", require("./routes/ai.route"));
 app.use("/api/v1/admin", require("./routes/admin.route"));
 app.use("/api/v1/reports", require("./routes/report.route"));
+app.use("/api/v1/omr", require("./routes/omr.route"));
 // app.use("/api/v1/users", require("./routes/user.route"));
 // Add more routes as needed
 

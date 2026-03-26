@@ -1,4 +1,6 @@
 const db = require('../config/database');
+const { v7: uuidv7 } = require('uuid');
+const CHOICE_LETTERS = ['A', 'B', 'C', 'D', 'E'];
 
 class AnswerKey {
   // Tạo đáp án chuẩn
@@ -10,13 +12,15 @@ class AnswerKey {
     default_score_per_question = 0.2,
     created_by
   }) {
+    const keyId = uuidv7();
     const query = `
-      INSERT INTO answer_keys 
-      (quiz_id, exam_code, correct_answers, score_per_question, default_score_per_question, created_by)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO answer_keys
+      (id, quiz_id, exam_code, correct_answers, score_per_question, default_score_per_question, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
-    
-    const [result] = await db.execute(query, [
+
+    await db.execute(query, [
+      keyId,
       quiz_id,
       exam_code,
       JSON.stringify(correct_answers),
@@ -25,17 +29,49 @@ class AnswerKey {
       created_by
     ]);
 
-    return this.findById(result.insertId);
+    return this.findById(keyId);
   }
 
   // Tạo tự động từ questions trong quiz
   static async createFromQuiz(quiz_id, exam_code = null, created_by) {
-    throw new Error('Chức năng OMR đã bị vô hiệu hóa');
-  }
+    const [rows] = await db.query(
+      `SELECT correct_answer, options, point FROM questions
+       WHERE quiz_id = ? AND is_deleted = FALSE ORDER BY created_at ASC`,
+      [quiz_id]
+    );
 
-  // Preview Answer Key trước khi tạo batch
-  static async preview(quiz_id) {
-    throw new Error('Chức năng OMR đã bị vô hiệu hóa');
+    if (rows.length === 0) throw new Error('Quiz không có câu hỏi nào');
+
+    const correct_answers = {};
+    let default_score = 0.2;
+
+    rows.forEach((q, i) => {
+      let answer = q.correct_answer;
+      // Parse if stored as JSON string
+      if (typeof answer === 'string') {
+        try { answer = JSON.parse(answer); } catch (_) { /* keep as-is */ }
+      }
+      // Normalize number index (0-based) → letter
+      if (typeof answer === 'number') {
+        answer = CHOICE_LETTERS[answer] ?? String(answer);
+      }
+      // Ensure single uppercase letter
+      if (typeof answer === 'string') {
+        answer = answer.trim().toUpperCase().charAt(0);
+      }
+      correct_answers[String(i + 1)] = answer || 'A';
+
+      // Derive default score from first question point
+      if (i === 0 && q.point) default_score = parseFloat(q.point);
+    });
+
+    return this.create({
+      quiz_id,
+      exam_code,
+      correct_answers,
+      default_score_per_question: default_score,
+      created_by
+    });
   }
 
   // Lấy answer key theo quiz_id và exam_code
@@ -57,8 +93,10 @@ class AnswerKey {
     if (rows.length === 0) return null;
     
     const answerKey = rows[0];
-    answerKey.correct_answers = JSON.parse(answerKey.correct_answers);
-    if (answerKey.score_per_question) {
+    if (typeof answerKey.correct_answers === 'string') {
+      answerKey.correct_answers = JSON.parse(answerKey.correct_answers);
+    }
+    if (answerKey.score_per_question && typeof answerKey.score_per_question === 'string') {
       answerKey.score_per_question = JSON.parse(answerKey.score_per_question);
     }
     return answerKey;
@@ -68,12 +106,14 @@ class AnswerKey {
   static async findById(id) {
     const query = 'SELECT * FROM answer_keys WHERE id = ?';
     const [rows] = await db.execute(query, [id]);
-    
+
     if (rows.length === 0) return null;
-    
+
     const answerKey = rows[0];
-    answerKey.correct_answers = JSON.parse(answerKey.correct_answers);
-    if (answerKey.score_per_question) {
+    if (typeof answerKey.correct_answers === 'string') {
+      answerKey.correct_answers = JSON.parse(answerKey.correct_answers);
+    }
+    if (answerKey.score_per_question && typeof answerKey.score_per_question === 'string') {
       answerKey.score_per_question = JSON.parse(answerKey.score_per_question);
     }
     return answerKey;
