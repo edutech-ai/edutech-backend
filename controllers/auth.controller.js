@@ -96,7 +96,7 @@ class AuthController {
         email,
         password,
         role,
-        subject: (role === 'TEACHER' && subject) ? subject : null
+        subject: (['TEACHER', 'TUTOR'].includes(role) && subject) ? subject : null
       });
 
       // Xóa pending data

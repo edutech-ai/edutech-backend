@@ -1,4 +1,7 @@
 const db = require('../config/database');
+const PDFDocument = require('pdfkit');
+const path = require('path');
+const fs = require('fs');
 
 /**
  * @desc    Get Monthly Recurring Revenue metrics
@@ -131,7 +134,8 @@ const getTotalUsers = async (req, res) => {
     const [currentResult] = await db.query(
       `SELECT COUNT(*) as total,
               SUM(CASE WHEN role = 'TEACHER' THEN 1 ELSE 0 END) as teachers,
-              SUM(CASE WHEN role = 'STUDENT' THEN 1 ELSE 0 END) as students
+              SUM(CASE WHEN role = 'STUDENT' THEN 1 ELSE 0 END) as students,
+              SUM(CASE WHEN role = 'TUTOR' THEN 1 ELSE 0 END) as tutors
        FROM users
        WHERE is_deleted = FALSE`
     );
@@ -159,7 +163,8 @@ const getTotalUsers = async (req, res) => {
         changePercent: parseFloat(changePercent),
         breakdown: {
           teachers: parseInt(currentResult[0].teachers || 0),
-          students: parseInt(currentResult[0].students || 0)
+          students: parseInt(currentResult[0].students || 0),
+          tutors: parseInt(currentResult[0].tutors || 0)
         }
       }
     });
@@ -473,7 +478,7 @@ async function getTotalUsersData() {
   const lastMonthEndDate = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
 
   const [currentResult] = await db.query(
-    `SELECT COUNT(*) as total, SUM(CASE WHEN role = 'TEACHER' THEN 1 ELSE 0 END) as teachers, SUM(CASE WHEN role = 'STUDENT' THEN 1 ELSE 0 END) as students FROM users WHERE is_deleted = FALSE`
+    `SELECT COUNT(*) as total, SUM(CASE WHEN role = 'TEACHER' THEN 1 ELSE 0 END) as teachers, SUM(CASE WHEN role = 'STUDENT' THEN 1 ELSE 0 END) as students, SUM(CASE WHEN role = 'TUTOR' THEN 1 ELSE 0 END) as tutors FROM users WHERE is_deleted = FALSE`
   );
   const [lastMonthResult] = await db.query(
     `SELECT COUNT(*) as total FROM users WHERE is_deleted = FALSE AND created_at <= ?`,
@@ -490,7 +495,8 @@ async function getTotalUsersData() {
     changePercent: parseFloat(changePercent),
     breakdown: {
       teachers: parseInt(currentResult[0].teachers || 0),
-      students: parseInt(currentResult[0].students || 0)
+      students: parseInt(currentResult[0].students || 0),
+      tutors: parseInt(currentResult[0].tutors || 0)
     }
   };
 }
@@ -984,5 +990,672 @@ module.exports = {
   getIndividualCustomers,
   getCustomerDetail,
   toggleLockCustomer,
-  createEnterpriseCustomer
+  createEnterpriseCustomer,
+  getPaymentSummary,
+  generatePaymentSummaryPDF,
+  getTransactionReceipts,
+  generateReceiptPDF
 };
+
+// ─── Payment Statement APIs ──────────────────────────────────────────────────
+
+/**
+ * @desc    Get paid customer count, total revenue & demographics
+ * @route   GET /api/v1/admin/payment/summary?from=YYYY-MM-DD&to=YYYY-MM-DD
+ * @access  Private/Admin
+ */
+async function getPaymentSummary(req, res) {
+  try {
+    const { from, to } = req.query;
+
+    // Build date filter
+    let dateFilter = `t.status = 'success'`;
+    const params = [];
+    if (from) {
+      dateFilter += ` AND t.created_at >= ?`;
+      params.push(from);
+    }
+    if (to) {
+      dateFilter += ` AND t.created_at <= ?`;
+      params.push(`${to} 23:59:59`);
+    }
+
+    // 1) Total paid customers & revenue
+    const [summaryRows] = await db.query(
+      `SELECT
+         COUNT(DISTINCT t.user_id)  AS paid_customer_count,
+         COALESCE(SUM(t.amount), 0) AS total_revenue
+       FROM transactions t
+       WHERE ${dateFilter}`,
+      params
+    );
+
+    // 2) Demographics by gender
+    const [genderRows] = await db.query(
+      `SELECT
+         COALESCE(up.gender, 'unknown') AS gender,
+         COUNT(DISTINCT t.user_id)      AS count
+       FROM transactions t
+       LEFT JOIN user_profiles up ON t.user_id = up.user_id
+       WHERE ${dateFilter}
+       GROUP BY COALESCE(up.gender, 'unknown')`,
+      params
+    );
+
+    // 3) Demographics by age range
+    const [ageRows] = await db.query(
+      `SELECT 
+         CASE 
+           WHEN age < 18 THEN '<18'
+           WHEN age BETWEEN 18 AND 24 THEN '18-24'
+           WHEN age BETWEEN 25 AND 34 THEN '25-34'
+           WHEN age BETWEEN 35 AND 44 THEN '35-44'
+           WHEN age >= 45 THEN '45+'
+           ELSE 'unknown'
+         END AS age_range,
+         COUNT(DISTINCT user_id) AS count
+       FROM (
+         SELECT 
+           t.user_id,
+           TIMESTAMPDIFF(YEAR, up.date_of_birth, CURDATE()) AS age
+         FROM transactions t
+         LEFT JOIN user_profiles up ON t.user_id = up.user_id
+         WHERE ${dateFilter}
+       ) AS ages
+       GROUP BY age_range`,
+      params
+    );
+
+    // 4) Demographics by job (role, excluding ADMIN)
+    const [jobRows] = await db.query(
+      `SELECT
+         u.role                    AS job,
+         COUNT(DISTINCT t.user_id) AS count
+       FROM transactions t
+       JOIN users u ON t.user_id = u.id
+       WHERE ${dateFilter} AND u.role != 'ADMIN'
+       GROUP BY u.role`,
+      params
+    );
+
+    // 5) Demographics by subscription plan
+    const [planRows] = await db.query(
+      `SELECT
+         sp.code                    AS plan_code,
+         sp.name                    AS plan_name,
+         COUNT(DISTINCT t.user_id)  AS count,
+         COALESCE(SUM(t.amount), 0) AS revenue
+       FROM transactions t
+       JOIN subscriptions s   ON t.subscription_id = s.id
+       JOIN subscription_plans sp ON s.plan_id = sp.id
+       WHERE ${dateFilter}
+       GROUP BY sp.code, sp.name`,
+      params
+    );
+
+    // Build response
+    const toObj = (rows, keyField, valueField = 'count') =>
+      rows.reduce((acc, r) => {
+        acc[r[keyField]] = parseInt(r[valueField]);
+        return acc;
+      }, {});
+
+    const planStats = planRows.reduce((acc, r) => {
+      acc[r.plan_code] = {
+        name: r.plan_name,
+        customerCount: parseInt(r.count),
+        revenue: parseFloat(r.revenue)
+      };
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      data: {
+        paidCustomerCount: parseInt(summaryRows[0].paid_customer_count),
+        totalRevenue: parseFloat(summaryRows[0].total_revenue),
+        currency: 'VND',
+        period: { from: from || null, to: to || null },
+        demographics: {
+          age:    toObj(ageRows,    'age_range'),
+          gender: toObj(genderRows, 'gender'),
+          job:    toObj(jobRows,    'job'),
+          plan:   planStats
+        }
+      }
+    });
+  } catch (error) {
+    console.error('getPaymentSummary error:', error);
+    res.status(500).json({ success: false, message: 'Failed to get payment summary', error: error.message });
+  }
+}
+
+/**
+ * @desc    Generate a PDF report of payment summary & demographics
+ * @route   GET /api/v1/admin/payment/summary/pdf?from=&to=
+ * @access  Private/Admin
+ */
+async function generatePaymentSummaryPDF(req, res) {
+  try {
+    const { from, to } = req.query;
+
+    // ── Build filters & params ──────────────────────────────────────────────
+    let dateFilter = `t.status = 'success'`;
+    const params = [];
+    if (from) { dateFilter += ` AND t.created_at >= ?`; params.push(from); }
+    if (to)   { dateFilter += ` AND t.created_at <= ?`; params.push(`${to} 23:59:59`); }
+
+    // ── 1) Fetch Financial Totals ──────────────────────────────────────────────
+    const [summaryRows] = await db.query(
+      `SELECT COUNT(DISTINCT t.user_id) AS paid_count, COALESCE(SUM(t.amount), 0) AS total_revenue
+       FROM transactions t WHERE ${dateFilter}`,
+      params
+    );
+    const paidCount    = parseInt(summaryRows[0].paid_count);
+    const totalRevenue = parseFloat(summaryRows[0].total_revenue);
+
+    // ── 2) Fetch Demographics (Age, Gender, Job, Plan) ─────────────────────────
+    const [genderRows] = await db.query(
+      `SELECT COALESCE(up.gender, 'unknown') AS gender, COUNT(DISTINCT t.user_id) AS count
+       FROM transactions t LEFT JOIN user_profiles up ON t.user_id = up.user_id
+       WHERE ${dateFilter} GROUP BY gender`, params
+    );
+
+    const [ageRows] = await db.query(
+      `SELECT 
+         CASE 
+           WHEN age < 18 THEN '< 18'
+           WHEN age BETWEEN 18 AND 24 THEN '18 - 24'
+           WHEN age BETWEEN 25 AND 34 THEN '25 - 34'
+           WHEN age BETWEEN 35 AND 44 THEN '35 - 44'
+           WHEN age >= 45 THEN '45+'
+           ELSE 'unknown'
+         END AS label,
+         COUNT(DISTINCT user_id) AS count
+       FROM (
+         SELECT t.user_id, TIMESTAMPDIFF(YEAR, up.date_of_birth, CURDATE()) AS age
+         FROM transactions t LEFT JOIN user_profiles up ON t.user_id = up.user_id
+         WHERE ${dateFilter}
+       ) AS ages
+       GROUP BY label`, params
+    );
+
+    const [jobRows] = await db.query(
+      `SELECT u.role AS label, COUNT(DISTINCT t.user_id) AS count
+       FROM transactions t JOIN users u ON t.user_id = u.id
+       WHERE ${dateFilter} AND u.role != 'ADMIN' GROUP BY u.role`, params
+    );
+
+    const [planRows] = await db.query(
+      `SELECT sp.name AS label, COUNT(DISTINCT t.user_id) AS count, COALESCE(SUM(t.amount), 0) AS revenue
+       FROM transactions t
+       JOIN subscriptions s ON t.subscription_id = s.id
+       JOIN subscription_plans sp ON s.plan_id = sp.id
+       WHERE ${dateFilter} GROUP BY sp.name`, params
+    );
+
+    // ── 3) Start PDF Generation ──────────────────────────────────────────────
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+    const filename = `payment-summary-${from || 'all'}-${to || 'now'}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    doc.pipe(res);
+
+    // Register Vietnamese fonts
+    const fontPathRegular = path.join(process.cwd(), 'fonts', 'Roboto-Regular.ttf');
+    const fontPathBold    = path.join(process.cwd(), 'fonts', 'Roboto-Bold.ttf');
+    if (fs.existsSync(fontPathRegular)) doc.registerFont('Roboto-Regular', fontPathRegular);
+    if (fs.existsSync(fontPathBold))    doc.registerFont('Roboto-Bold',    fontPathBold);
+
+    const PAGE_WIDTH = doc.page.width - 80;
+    const COLOR_PRIMARY = '#1a56db';
+    const COLOR_LIGHT   = '#f8faff';
+    const COLOR_BORDER  = '#e5e7eb';
+    const COLOR_GRAY    = '#6b7280';
+
+    // ── Header ──────────────────────────────────────────────────────────────
+    doc.fillColor(COLOR_PRIMARY).fontSize(20).font('Roboto-Bold').text('BÁO CÁO TỔNG HỢP THANH TOÁN', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fillColor(COLOR_GRAY).fontSize(10).font('Roboto-Regular')
+       .text(`Ngày xuất: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`, { align: 'center' });
+    
+    const periodStr = (from || to) ? `Kỳ báo cáo: ${from || 'Toàn bộ'} ➔ ${to || 'Hiện tại'}` : 'Kỳ báo cáo: Toàn thời gian';
+    doc.text(periodStr, { align: 'center' });
+    doc.moveDown(1.5);
+
+    // ── Financial Box ────────────────────────────────────────────────────────
+    const boxY = doc.y;
+    doc.rect(40, boxY, PAGE_WIDTH, 75).fill(COLOR_LIGHT).stroke(COLOR_BORDER);
+    
+    doc.fillColor(COLOR_PRIMARY).fontSize(11).font('Roboto-Bold')
+       .text('TỔNG QUAN TÀI CHÍNH', 60, boxY + 15);
+    
+    doc.fillColor('#111827').fontSize(14).font('Roboto-Bold')
+       .text(`${totalRevenue.toLocaleString('vi-VN')} VND`, 60, boxY + 36);
+    doc.fontSize(9).font('Roboto-Regular').fillColor(COLOR_GRAY).text('Tổng doanh thu thuần', 60, boxY + 54);
+
+    doc.fillColor('#111827').fontSize(18).font('Roboto-Bold')
+       .text(`${paidCount}`, 260, boxY + 32, { width: 220, align: 'center' });
+    doc.fontSize(9).font('Roboto-Regular').fillColor(COLOR_GRAY).text('Khách hàng đã thanh toán', 260, boxY + 54, { width: 220, align: 'center' });
+    
+    doc.moveDown(4.5);
+
+    // ── Visualization Helpers ────────────────────────────────────────────────
+    const BAR_MAX_W = 150;
+    const drawSectionHeader = (title) => {
+      // Check for page break
+      if (doc.y > doc.page.height - 150) doc.addPage();
+      
+      doc.moveDown(1.5);
+      doc.fillColor(COLOR_PRIMARY).fontSize(12).font('Roboto-Bold').text(title, 40);
+      doc.moveTo(40, doc.y + 2).lineTo(40 + PAGE_WIDTH, doc.y + 2).strokeColor(COLOR_BORDER).stroke();
+      doc.moveDown(0.8);
+    };
+
+    const drawProgressBar = (label, count, total, color = '#3b82f6') => {
+      const percentage = total > 0 ? (count / total) : 0;
+      const barY = doc.y;
+
+      // Check for page break before drawing row
+      if (barY > doc.page.height - 40) {
+        doc.addPage();
+        return drawProgressBar(label, count, total, color);
+      }
+      
+      doc.fillColor('#374151').fontSize(9).font('Roboto-Regular').text(label, 40, barY, { width: 100 });
+      
+      // Gray background bar
+      doc.rect(150, barY - 1, BAR_MAX_W, 10).fill('#f3f4f6');
+      // Filled colored bar
+      if (percentage > 0) {
+        doc.rect(150, barY - 1, BAR_MAX_W * percentage, 10).fill(color);
+      }
+      
+      doc.fillColor('#111827').fontSize(9).font('Roboto-Bold')
+         .text(`${count} (${Math.round(percentage * 100)}%)`, 150 + BAR_MAX_W + 10, barY);
+      
+      doc.moveDown(0.6);
+    };
+
+    // ── 1) AGE ───────────────────────────────────────────────────────────────
+    drawSectionHeader('THỐNG KÊ ĐỘ TUỔI');
+    if (ageRows.length === 0) doc.fontSize(9).fillColor(COLOR_GRAY).text('Không có dữ liệu');
+    else ageRows.forEach(r => drawProgressBar(r.label, r.count, paidCount, '#6366f1'));
+
+    // ── 2) GENDER ────────────────────────────────────────────────────────────
+    drawSectionHeader('THỐNG KÊ GIỚI TÍNH');
+    if (genderRows.length === 0) {
+      doc.fontSize(9).fillColor(COLOR_GRAY).text('Không có dữ liệu');
+    } else {
+      const gStats = { 'Nam': 0, 'Nữ': 0, 'Khác': 0 };
+      genderRows.forEach(r => {
+        const lbl = r.gender === 'male' ? 'Nam' : (r.gender === 'female' ? 'Nữ' : 'Khác');
+        gStats[lbl] += r.count;
+      });
+      Object.entries(gStats).forEach(([lbl, cnt]) => drawProgressBar(lbl, cnt, paidCount, '#10b981')); // Emerald
+    }
+
+    // ── 3) JOB ───────────────────────────────────────────────────────────────
+    drawSectionHeader('THỐNG KÊ VAI TRÒ (JOB)');
+    if (jobRows.length === 0) doc.fontSize(9).fillColor(COLOR_GRAY).text('Không có dữ liệu');
+    else jobRows.forEach(r => drawProgressBar(r.label, r.count, paidCount, '#f59e0b'));
+
+    // ── 4) PLANS ─────────────────────────────────────────────────────────────
+    drawSectionHeader('PHÂN BỔ GÓI CƯỚC');
+    if (planRows.length === 0) {
+      doc.fontSize(9).fillColor(COLOR_GRAY).text('Không có dữ liệu');
+    } else {
+      const planStartY = doc.y;
+      doc.fillColor(COLOR_GRAY).fontSize(8).font('Roboto-Bold')
+         .text('Gói cước', 40, planStartY)
+         .text('Số lượng', 180, planStartY, { width: 60, align: 'right' })
+         .text('Doanh thu', 250, planStartY, { width: 100, align: 'right' })
+         .text('% Doanh thu', 360, planStartY, { width: 70, align: 'right' });
+      
+      doc.moveTo(40, doc.y + 2).lineTo(40 + PAGE_WIDTH, doc.y + 2).strokeColor(COLOR_BORDER).stroke();
+      doc.moveDown(0.5);
+
+      planRows.forEach(r => {
+        const rowY = doc.y;
+        if (rowY > doc.page.height - 40) doc.addPage();
+        const revPct = totalRevenue > 0 ? (r.revenue / totalRevenue) : 0;
+        
+        doc.fillColor('#111827').fontSize(9).font('Roboto-Regular')
+           .text(r.label, 40, rowY)
+           .text(r.count, 180, rowY, { width: 60, align: 'right' })
+           .text(parseFloat(r.revenue).toLocaleString('vi-VN') + ' đ', 250, rowY, { width: 100, align: 'right' })
+           .text(Math.round(revPct * 100) + '%', 360, rowY, { width: 70, align: 'right' });
+        
+        doc.moveDown(0.4);
+      });
+    }
+
+    // ── Footer ───────────────────────────────────────────────────────────────
+    const footerY = doc.page.height - 40;
+    doc.moveTo(40, footerY).lineTo(40 + PAGE_WIDTH, footerY).strokeColor(COLOR_BORDER).stroke();
+    doc.fillColor(COLOR_GRAY).fontSize(8).font('Roboto-Regular')
+       .text('Báo cáo được trích xuất từ hệ thống quản trị Edutech', 40, footerY + 10, { align: 'center', width: PAGE_WIDTH });
+
+    doc.end();
+
+  } catch (error) {
+    console.error('generatePaymentSummaryPDF error:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate summary PDF' });
+  }
+}
+
+
+/**
+ * @desc    Get paginated transaction receipts with customer identification
+ * @route   GET /api/v1/admin/payment/receipts?from=&to=&page=&limit=
+ * @access  Private/Admin
+ */
+async function getTransactionReceipts(req, res) {
+  try {
+    const { from, to, page = 1, limit = 20 } = req.query;
+    const pageNum  = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset   = (pageNum - 1) * limitNum;
+
+    let dateFilter = `t.status = 'success'`;
+    const params = [];
+    if (from) { dateFilter += ` AND t.created_at >= ?`; params.push(from); }
+    if (to)   { dateFilter += ` AND t.created_at <= ?`; params.push(`${to} 23:59:59`); }
+
+    // Total count
+    const [countRows] = await db.query(
+      `SELECT COUNT(*) AS total FROM transactions t WHERE ${dateFilter}`,
+      params
+    );
+
+    // Receipts with customer info
+    const [rows] = await db.query(
+      `SELECT
+         t.id                     AS transaction_id,
+         t.gateway_transaction_id AS gateway_transaction_id,
+         t.sepay_order_code       AS sepay_order_code,
+         t.amount,
+         t.payment_method,
+         t.created_at             AS paid_at,
+         i.invoice_code           AS receipt_number,
+         sp.code                  AS plan_code,
+         sp.name                  AS plan_name,
+         sp.currency,
+         u.id                     AS user_id,
+         u.email,
+         u.role,
+         u.subject,
+         up.name                  AS customer_name,
+         up.gender,
+         up.date_of_birth,
+         up.address
+       FROM transactions t
+       JOIN users u              ON t.user_id = u.id
+       LEFT JOIN user_profiles up ON t.user_id = up.user_id
+       LEFT JOIN invoices i       ON t.id = i.transaction_id
+       LEFT JOIN subscriptions s  ON t.subscription_id = s.id
+       LEFT JOIN subscription_plans sp ON s.plan_id = sp.id
+       WHERE ${dateFilter}
+       ORDER BY t.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limitNum, offset]
+    );
+
+    const receipts = rows.map(r => ({
+      receiptNumber:       r.receipt_number   || `TXN-${r.transaction_id.slice(0, 8).toUpperCase()}`,
+      transactionId:       r.transaction_id,
+      gatewayTransactionId: r.gateway_transaction_id,
+      sepayOrderCode:      r.sepay_order_code,
+      amount:              parseFloat(r.amount),
+      currency:            r.currency || 'VND',
+      paymentMethod:       r.payment_method,
+      paidAt:              r.paid_at,
+      plan:                { code: r.plan_code, name: r.plan_name },
+      customer: {
+        userId:      r.user_id,
+        email:       r.email,
+        name:        r.customer_name || null,
+        role:        r.role,
+        subject:     r.subject       || null,
+        gender:      r.gender        || null,
+        dateOfBirth: r.date_of_birth || null,
+        address:     r.address       || null
+      }
+    }));
+
+    res.json({
+      success: true,
+      data: receipts,
+      pagination: {
+        total:      parseInt(countRows[0].total),
+        page:       pageNum,
+        limit:      limitNum,
+        totalPages: Math.ceil(parseInt(countRows[0].total) / limitNum)
+      }
+    });
+  } catch (error) {
+    console.error('getTransactionReceipts error:', error);
+    res.status(500).json({ success: false, message: 'Failed to get transaction receipts', error: error.message });
+  }
+}
+
+/**
+ * @desc    Generate PDF transaction receipt report
+ * @route   GET /api/v1/admin/payment/receipts/pdf?from=&to=
+ * @access  Private/Admin
+ */
+async function generateReceiptPDF(req, res) {
+  try {
+    const PDFDocument = require('pdfkit');
+    const path = require('path');
+    const { from, to } = req.query;
+
+    // Font paths – Roboto supports full Vietnamese Unicode
+    const FONT_REGULAR = path.join(__dirname, '../fonts/Roboto-Regular.ttf');
+    const FONT_BOLD    = path.join(__dirname, '../fonts/Roboto-Bold.ttf');
+
+    let dateFilter = `t.status = 'success'`;
+    const params = [];
+    if (from) { dateFilter += ` AND t.created_at >= ?`; params.push(from); }
+    if (to)   { dateFilter += ` AND t.created_at <= ?`; params.push(`${to} 23:59:59`); }
+
+    // Summary row
+    const [summaryRows] = await db.query(
+      `SELECT COUNT(DISTINCT t.user_id) AS paid_count, COALESCE(SUM(t.amount), 0) AS total_revenue
+       FROM transactions t WHERE ${dateFilter}`,
+      params
+    );
+
+    // All receipts (no pagination for PDF)
+    const [rows] = await db.query(
+      `SELECT
+         t.id                     AS transaction_id,
+         t.gateway_transaction_id AS gateway_transaction_id,
+         t.sepay_order_code       AS sepay_order_code,
+         t.description            AS tx_description,
+         t.amount,
+         t.created_at             AS paid_at,
+         i.invoice_code           AS receipt_number,
+         sp.name                  AS plan_name,
+         u.email,
+         up.name                  AS customer_name
+       FROM transactions t
+       JOIN users u               ON t.user_id = u.id
+       LEFT JOIN user_profiles up  ON t.user_id = up.user_id
+       LEFT JOIN invoices i        ON t.id = i.transaction_id
+       LEFT JOIN subscriptions s   ON t.subscription_id = s.id
+       LEFT JOIN subscription_plans sp ON s.plan_id = sp.id
+       WHERE ${dateFilter}
+       ORDER BY t.created_at DESC`,
+      params
+    );
+
+    const paidCount   = parseInt(summaryRows[0].paid_count);
+    const totalRevenue = parseFloat(summaryRows[0].total_revenue);
+
+    // ── Build PDF ────────────────────────────────────────────────────────────
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+
+    // Register Vietnamese-compatible fonts
+    doc.registerFont('Roboto-Regular', FONT_REGULAR);
+    doc.registerFont('Roboto-Bold',    FONT_BOLD);
+
+    const fileName = `transaction-receipts-${Date.now()}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    doc.pipe(res);
+
+    const COLOR_PRIMARY = '#1a56db';
+    const COLOR_GRAY    = '#6b7280';
+    const COLOR_LIGHT   = '#f3f4f6';
+    const COLOR_BORDER  = '#d1d5db';
+    const PAGE_WIDTH    = doc.page.width - 80; // margins 40 each side
+
+    // ── Header ───────────────────────────────────────────────────────────────
+    doc.rect(0, 0, doc.page.width, 90).fill(COLOR_PRIMARY);
+    doc.fillColor('#ffffff').fontSize(22).font('Roboto-Bold')
+       .text('EDUTECH', 40, 25);
+    doc.fontSize(11).font('Roboto-Regular')
+       .text('Transaction Receipt Report', 40, 52);
+    doc.fontSize(9)
+       .text(`Generated: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`, 40, 68);
+
+    // Period info (right aligned)
+    const periodText = (from || to)
+      ? `Period: ${from || 'All time'} → ${to || 'Now'}`
+      : 'Period: All time';
+    doc.fontSize(9).text(periodText, 40, 68, { align: 'right', width: PAGE_WIDTH });
+
+    doc.moveDown(4);
+
+    // ── Summary box ──────────────────────────────────────────────────────────
+    const summaryY = doc.y;
+    doc.rect(40, summaryY, PAGE_WIDTH, 68).fill(COLOR_LIGHT).stroke(COLOR_BORDER);
+    doc.fillColor(COLOR_PRIMARY).fontSize(11).font('Roboto-Bold')
+       .text('PAYMENT SUMMARY', 55, summaryY + 10);
+    doc.fillColor('#111827').fontSize(10).font('Roboto-Regular')
+       .text(`Paid Customers:`, 55,   summaryY + 30)
+       .text(`${paidCount} customers`, 175, summaryY + 30);
+    doc.text(`Total Revenue:`, 55, summaryY + 44)
+       .text(`${totalRevenue.toLocaleString('vi-VN')} VND`, 175, summaryY + 44);
+
+    doc.moveDown(3.5);
+
+    // ── Reconciliation guide ─────────────────────────────────────────────────
+    const guideY = doc.y;
+    doc.rect(40, guideY, PAGE_WIDTH, 42).fill('#fffbeb').stroke('#f59e0b');
+    doc.fillColor('#92400e').fontSize(8).font('Roboto-Bold')
+       .text('📋 HƯỚNG DẪN ĐỐI SOÁT VỚI SỔ NGÂN HÀNG', 52, guideY + 6);
+    doc.fillColor('#78350f').fontSize(7.5).font('Roboto-Regular')
+       .text('Mỗi giao dịch dưới đây có cột "Nội dung CK" — đây là chuỗi khách hàng đã nhập khi chuyển khoản (ví dụ: EDUTECH 915490702099).', 52, guideY + 19, { width: PAGE_WIDTH - 24 })
+       .text('Tìm đúng chuỗi này trong cột "Nội dung" trên sao kê ngân hàng để xác nhận giao dịch tương ứng.', 52, guideY + 30, { width: PAGE_WIDTH - 24 });
+    doc.moveDown(3.5);
+
+    // ── Transaction table ────────────────────────────────────────────────────
+    doc.fillColor(COLOR_PRIMARY).fontSize(11).font('Roboto-Bold')
+       .text('TRANSACTION DETAILS', 40, doc.y);
+    doc.moveDown(0.4);
+
+    // 7 aligned columns (Page width 595 - 40 margin = 555pt usable)
+    const COL = {
+      no:     { x: 40,  w: 20  },   // #
+      email:  { x: 62,  w: 105 },   // Email
+      name:   { x: 169, w: 85  },   // Tên KH
+      plan:   { x: 256, w: 60  },   // Gói
+      amt:    { x: 318, w: 70  },   // Số tiền
+      date:   { x: 390, w: 55  },   // Ngày TT
+      ck:     { x: 447, w: 108 }    // Nội dung CK (Increased to fit "EDUTECH {orderCode}")
+    };
+
+    const ROW1_H = 16;  // main data row
+    const ROW2_H = 12;  // detail sub-row
+    const BLOCK_H = ROW1_H + ROW2_H;
+
+    // ── Table header ─────────────────────────────────────────────────────────
+    const headerY = doc.y;
+    doc.rect(40, headerY, PAGE_WIDTH, ROW1_H).fill('#1a56db');
+    doc.fillColor('#ffffff').fontSize(7).font('Roboto-Bold');
+    const hY = headerY + 5;
+    doc.text('#',            COL.no.x   + 2, hY, { width: COL.no.w  });
+    doc.text('Email',        COL.email.x + 2, hY, { width: COL.email.w });
+    doc.text('Tên KH',       COL.name.x  + 2, hY, { width: COL.name.w  });
+    doc.text('Gói',          COL.plan.x  + 2, hY, { width: COL.plan.w  });
+    doc.text('Số tiền (VND)', COL.amt.x  + 2, hY, { width: COL.amt.w   });
+    doc.text('Ngày TT',      COL.date.x  + 2, hY, { width: COL.date.w  });
+    doc.text('Nội dung CK',  COL.ck.x   + 2, hY, { width: COL.ck.w   });
+
+    let rowY = headerY + ROW1_H;
+
+    rows.forEach((r, idx) => {
+      // Page break
+      if (rowY > doc.page.height - 80) {
+        doc.addPage();
+        rowY = 40;
+      }
+
+      const isEven = idx % 2 === 0;
+      const bgMain = isEven ? '#ffffff' : '#f8faff';
+      const bgSub  = isEven ? '#f1f5f9' : '#e8eef7';
+
+      const receiptNum      = r.receipt_number || `TXN-${r.transaction_id.slice(0, 8).toUpperCase()}`;
+      const payDate         = r.paid_at ? new Date(r.paid_at).toLocaleDateString('vi-VN') : '-';
+      const transferContent = r.sepay_order_code ? `EDUTECH ${r.sepay_order_code}` : '-';
+      const amtStr          = parseFloat(r.amount).toLocaleString('vi-VN');
+      const sepayId         = r.gateway_transaction_id || r.sepay_order_code || '-';
+
+      // ── Row 1: main data ──────────────────────────────────────────────────
+      doc.rect(40, rowY, PAGE_WIDTH, ROW1_H).fill(bgMain).stroke(COLOR_BORDER);
+
+      const r1y = rowY + 5;
+      // #
+      doc.fillColor('#6b7280').font('Roboto-Bold').fontSize(7);
+      doc.text(`${idx + 1}`, COL.no.x + 2, r1y, { width: COL.no.w });
+      // Email
+      doc.fillColor('#111827').font('Roboto-Regular').fontSize(7);
+      doc.text(r.email || '-', COL.email.x + 2, r1y, { width: COL.email.w, ellipsis: true });
+      // Tên KH
+      doc.text(r.customer_name || '-', COL.name.x + 2, r1y, { width: COL.name.w, ellipsis: true });
+      // Gói – bold blue
+      doc.fillColor('#1e40af').font('Roboto-Bold').fontSize(7);
+      doc.text(r.plan_name || '-', COL.plan.x + 2, r1y, { width: COL.plan.w, ellipsis: true });
+      // Số tiền – bold green
+      doc.fillColor('#059669').font('Roboto-Bold').fontSize(7);
+      doc.text(amtStr, COL.amt.x + 2, r1y, { width: COL.amt.w, ellipsis: true });
+      // Ngày
+      doc.fillColor('#374151').font('Roboto-Regular').fontSize(7);
+      doc.text(payDate, COL.date.x + 2, r1y, { width: COL.date.w });
+      // Nội dung CK (short preview) – orange bold
+      doc.fillColor('#b45309').font('Roboto-Bold').fontSize(6.5);
+      doc.text(transferContent, COL.ck.x + 2, r1y, { width: COL.ck.w, ellipsis: true, lineBreak: false });
+
+      // ── Row 2: detail line (receipt # │ SePay ID │ full transfer content) ─
+      doc.rect(40, rowY + ROW1_H, PAGE_WIDTH, ROW2_H).fill(bgSub).stroke(COLOR_BORDER);
+
+      const r2y = rowY + ROW1_H + 3;
+      doc.fillColor('#9ca3af').font('Roboto-Regular').fontSize(6.5);
+      const detailLine = `Mã HĐ: ${receiptNum}   |   SePay ID: ${sepayId}   |   Nội dung CK: ${transferContent}`;
+      doc.text(detailLine, 52, r2y, { width: PAGE_WIDTH - 14, ellipsis: true });
+
+      rowY += BLOCK_H;
+    });
+
+    if (rows.length === 0) {
+      doc.fillColor(COLOR_GRAY).fontSize(10).font('Roboto-Regular')
+         .text('Không có giao dịch thành công trong kỳ đã chọn.', 40, rowY + 10, { align: 'center', width: PAGE_WIDTH });
+    }
+
+
+    // ── Footer ───────────────────────────────────────────────────────────────
+    const footerY = doc.page.height - 30;
+    doc.fillColor(COLOR_GRAY).fontSize(8).font('Roboto-Regular')
+       .text(`EduTech Platform  |  Tổng: ${rows.length} giao dịch  |  Trang 1`,
+             40, footerY, { align: 'center', width: PAGE_WIDTH });
+
+    doc.end();
+  } catch (error) {
+    console.error('generateReceiptPDF error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: 'Failed to generate PDF', error: error.message });
+    }
+  }
+}

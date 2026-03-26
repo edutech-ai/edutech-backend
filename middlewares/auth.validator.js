@@ -16,7 +16,7 @@ const registerValidation = [
     .withMessage('Password must be at least 6 characters'),
   body('role')
     .optional()
-    .isIn(['STUDENT', 'TEACHER', 'ADMIN'])
+    .isIn(['STUDENT', 'TEACHER', 'TUTOR', 'ADMIN'])
     .withMessage('Invalid role'),
   body('subject')
     .optional({ checkFalsy: true })
