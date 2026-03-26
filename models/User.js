@@ -52,19 +52,19 @@ class User {
     const fields = [];
     const values = [];
 
-    if (data.email) {
+    if (data.email !== undefined) {
       fields.push('email = ?');
       values.push(data.email);
     }
-    if (data.role) {
+    if (data.role !== undefined) {
       fields.push('role = ?');
       values.push(data.role);
     }
-    if (data.subject) {
+    if (data.subject !== undefined) {
       fields.push('subject = ?');
       values.push(data.subject);
     }
-    if (data.status) {
+    if (data.status !== undefined) {
       fields.push('status = ?');
       values.push(data.status);
     }

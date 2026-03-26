@@ -285,7 +285,7 @@ router.post('/', authenticate, profileValidation, ProfileController.createProfil
  *       404:
  *         description: Profile không tồn tại
  */
-router.put('/', authenticate, ProfileController.updateProfile);
+router.put('/', authenticate, profileValidation, ProfileController.updateProfile);
 
 /**
  * @swagger
