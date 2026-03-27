@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { v7: uuidv7 } = require('uuid');
 const CHOICE_LETTERS = ['A', 'B', 'C', 'D', 'E'];
 
 class AnswerKey {
@@ -11,13 +12,15 @@ class AnswerKey {
     default_score_per_question = 0.2,
     created_by
   }) {
+    const keyId = uuidv7();
     const query = `
-      INSERT INTO answer_keys 
-      (quiz_id, exam_code, correct_answers, score_per_question, default_score_per_question, created_by)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO answer_keys
+      (id, quiz_id, exam_code, correct_answers, score_per_question, default_score_per_question, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
-    
-    const [result] = await db.execute(query, [
+
+    await db.execute(query, [
+      keyId,
       quiz_id,
       exam_code,
       JSON.stringify(correct_answers),
@@ -26,7 +29,7 @@ class AnswerKey {
       created_by
     ]);
 
-    return this.findById(result.insertId);
+    return this.findById(keyId);
   }
 
   // Tạo tự động từ questions trong quiz
@@ -90,8 +93,10 @@ class AnswerKey {
     if (rows.length === 0) return null;
     
     const answerKey = rows[0];
-    answerKey.correct_answers = JSON.parse(answerKey.correct_answers);
-    if (answerKey.score_per_question) {
+    if (typeof answerKey.correct_answers === 'string') {
+      answerKey.correct_answers = JSON.parse(answerKey.correct_answers);
+    }
+    if (answerKey.score_per_question && typeof answerKey.score_per_question === 'string') {
       answerKey.score_per_question = JSON.parse(answerKey.score_per_question);
     }
     return answerKey;
@@ -101,12 +106,14 @@ class AnswerKey {
   static async findById(id) {
     const query = 'SELECT * FROM answer_keys WHERE id = ?';
     const [rows] = await db.execute(query, [id]);
-    
+
     if (rows.length === 0) return null;
-    
+
     const answerKey = rows[0];
-    answerKey.correct_answers = JSON.parse(answerKey.correct_answers);
-    if (answerKey.score_per_question) {
+    if (typeof answerKey.correct_answers === 'string') {
+      answerKey.correct_answers = JSON.parse(answerKey.correct_answers);
+    }
+    if (answerKey.score_per_question && typeof answerKey.score_per_question === 'string') {
       answerKey.score_per_question = JSON.parse(answerKey.score_per_question);
     }
     return answerKey;

@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { v7: uuidv7 } = require('uuid');
 
 class ExamBatch {
   // Tạo đợt thi mới
@@ -18,15 +19,17 @@ class ExamBatch {
     end_at,
     created_by
   }) {
+    const batchId = uuidv7();
     const query = `
-      INSERT INTO exam_batches 
-      (quiz_id, classroom_id, template_id, name, description, batch_type, 
+      INSERT INTO exam_batches
+      (id, quiz_id, classroom_id, template_id, name, description, batch_type,
        access_code, max_attempts, time_limit_minutes, passing_score, total_score,
        start_at, end_at, created_by, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled')
     `;
-    
-    const [result] = await db.execute(query, [
+
+    await db.execute(query, [
+      batchId,
       quiz_id,
       classroom_id,
       template_id,
@@ -43,7 +46,7 @@ class ExamBatch {
       created_by
     ]);
 
-    return this.findById(result.insertId);
+    return this.findById(batchId);
   }
 
   // Lấy batch theo ID

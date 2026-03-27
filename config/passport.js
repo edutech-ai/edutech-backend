@@ -3,7 +3,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/User');
 
 passport.serializeUser((user, done) => {
-  done(null, user.user_id);
+  done(null, user.id);
 });
 
 passport.deserializeUser(async (id, done) => {
@@ -39,8 +39,18 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
           
           // Cập nhật google_id nếu chưa có
           if (!user.google_id) {
-            await User.updateGoogleId(user.user_id, profile.id);
+            await User.updateGoogleId(user.id, profile.id);
             user.google_id = profile.id;
+          }
+
+          // Đảm bảo existing user cũng có profile
+          const UserProfile = require('../models/UserProfile');
+          const existingProfile = await UserProfile.findByUserId(user.id);
+          if (!existingProfile) {
+            await UserProfile.create(user.id, {
+              name: profile.displayName || email.split('@')[0],
+              avatar_url: profile.photos && profile.photos[0] ? profile.photos[0].value : null
+            });
           }
         } else {
           // Tạo user mới từ Google account

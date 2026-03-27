@@ -15,8 +15,13 @@ const {
   getIndividualCustomers,
   getCustomerDetail,
   toggleLockCustomer,
-  createEnterpriseCustomer
+  createEnterpriseCustomer,
+  getPaymentSummary,
+  generatePaymentSummaryPDF,
+  getTransactionReceipts,
+  generateReceiptPDF
 } = require('../controllers/admin.controller');
+
 
 /**
  * @swagger
@@ -453,4 +458,129 @@ router.get('/customers/individual', authenticate, authorizeAdmin, getIndividualC
 router.get('/customers/:id', authenticate, authorizeAdmin, getCustomerDetail);
 router.patch('/customers/:id/lock', authenticate, authorizeAdmin, toggleLockCustomer);
 
+// ─── Payment Statement Routes ─────────────────────────────────────────────────
+
+/**
+ * @swagger
+ * /api/v1/admin/payment/summary:
+ *   get:
+ *     summary: Get paid customer count, total revenue & demographics
+ *     tags: [Admin Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2025-01-01"
+ *         description: Start date filter (inclusive)
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2025-12-31"
+ *         description: End date filter (inclusive)
+ *     responses:
+ *       200:
+ *         description: Payment summary data
+ * /api/v1/admin/payment/summary/pdf:
+ *   get:
+ *     summary: Download PDF report of payment summary & demographics
+ *     tags: [Admin Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date filter
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date filter
+ *     responses:
+ *       200:
+ *         description: PDF file
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ */
+router.get('/payment/summary', authenticate, authorizeAdmin, getPaymentSummary);
+router.get('/payment/summary/pdf', authenticate, authorizeAdmin, generatePaymentSummaryPDF);
+
+/**
+ * @swagger
+ * /api/v1/admin/payment/receipts:
+ *   get:
+ *     summary: Get paginated transaction receipts with customer identification
+ *     tags: [Admin Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: List of transaction receipts with customer info (email, name, userId, gatewayTransactionId)
+ */
+router.get('/payment/receipts', authenticate, authorizeAdmin, getTransactionReceipts);
+
+/**
+ * @swagger
+ * /api/v1/admin/payment/receipts/pdf:
+ *   get:
+ *     summary: Download PDF report of all transaction receipts
+ *     tags: [Admin Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: PDF file download
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ */
+router.get('/payment/receipts/pdf', authenticate, authorizeAdmin, generateReceiptPDF);
+
 module.exports = router;
+
