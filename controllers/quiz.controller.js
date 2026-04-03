@@ -401,8 +401,8 @@ class QuizController {
         });
       }
 
-      // Chỉ owner mới xem được đáp án khi includeAnswers=true
-      const showAnswers = includeAnswers === 'true' && isOwner;
+      // Owner luôn xem được đáp án; quiz community cho phép user đã đăng nhập xem đáp án
+      const showAnswers = includeAnswers === 'true' && (isOwner || (isCommunity && !!req.user));
       const questions = await Question.findByQuizId(id, showAnswers);
 
       res.json({

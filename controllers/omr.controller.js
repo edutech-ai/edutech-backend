@@ -159,12 +159,7 @@ exports.createExamBatch = async (req, res) => {
     });
 
     // Auto-generate answer key from quiz questions (using quiz's exam_code)
-    let answerKey = null;
-    try {
-      answerKey = await AnswerKey.createFromQuiz(quiz_id, quiz.exam_code, teacherId);
-    } catch (keyErr) {
-      console.warn('Answer key generation failed:', keyErr.message);
-    }
+    const answerKey = await AnswerKey.createFromQuiz(quiz_id, quiz.exam_code ?? null, teacherId);
 
     await ExamBatch.update(batch.id, { status: 'open' });
 
